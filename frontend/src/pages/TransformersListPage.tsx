@@ -2,52 +2,129 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../components/common/PageLayout';
 import Pagination from '../components/common/Pagination';
-import AddTransformerModal from '../transformers/AddTransformerModal'; // <-- Import the modal
+import AddTransformerModal from '../transformers/AddTransformerModal';
 import { Search, Plus, Star, MoreVertical, ChevronLeft } from 'lucide-react';
 
 const transformersData = [
     { no: 'AZ-8890', pole: 'EN-122-A', region: 'Nugegoda', type: 'Bulk' },
-    // ... other transformer data
+    { no: 'AZ-1649', pole: 'EN-122-A', region: 'Nugegoda', type: 'Bulk' },
+    { no: 'AZ-7316', pole: 'EN-122-B', region: 'Nugegoda', type: 'Bulk' },
+    { no: 'AZ-4613', pole: 'EN-122-B', region: 'Nugegoda', type: 'Bulk' },
+    { no: 'AX-8993', pole: 'EN-122-A', region: 'Nugegoda', type: 'Distribution' },
+    { no: 'AY-8750', pole: 'EN-122-B', region: 'Nugegoda', type: 'Distribution' },
+    { no: 'AZ-4563', pole: 'EN-123-A', region: 'Maharagama', type: 'Bulk' },
+    { no: 'AZ-8523', pole: 'EN-123-A', region: 'Maharagama', type: 'Bulk' },
+    { no: 'AZ-8456', pole: 'EN-123-B', region: 'Maharagama', type: 'Bulk' },
+    { no: 'AZ-7895', pole: 'EN-123-B', region: 'Maharagama', type: 'Bulk' },
+    { no: 'AX-8990', pole: 'EN-123-A', region: 'Maharagama', type: 'Distribution' },
 ];
 
 const TransformersListPage = () => {
-    // State to control the modal's visibility
     const [isModalOpen, setIsModalOpen] = useState(false);
     const navigate = useNavigate();
 
     return (
         <PageLayout title="Transformers">
-            {/* Render the modal component and pass state to it */}
             <AddTransformerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
             
             {/* Card Header */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex-shrink-0 flex justify-between items-center mb-6">
                 <div className="flex items-center space-x-4">
                     <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-gray-100">
                         <ChevronLeft size={24} />
                     </button>
                     <h2 className="text-xl font-bold text-gray-800">Transformers</h2>
-                    {/* This button now opens the modal */}
                     <button 
                         onClick={() => setIsModalOpen(true)} 
-                        className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm font-semibold"
+                        className="flex items-center bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 text-base font-bold shadow-lg transition-all duration-200 hover:shadow-xl transform hover:scale-105 border-2 border-blue-600"
+                        style={{ backgroundColor: '#2563eb', color: 'white' }}
                     >
-                        <Plus size={18} className="mr-2"/> Add Transformer
+                        <Plus size={20} className="mr-2"/> Add Transformer
                     </button>
                 </div>
-                <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-md">
-                    <button className="px-4 py-1.5 bg-white text-blue-600 rounded-md shadow text-sm font-semibold">Transformers</button>
-                    <button onClick={() => navigate('/inspections')} className="px-4 py-1.5 text-gray-600 rounded-md text-sm font-semibold">Inspections</button>
+                <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg">
+                    <button 
+                        className="px-6 py-2 bg-blue-600 text-white rounded-lg shadow-sm text-sm font-semibold"
+                        style={{ backgroundColor: '#2563eb', color: 'white' }}
+                    >
+                        Transformers
+                    </button>
+                    <button onClick={() => navigate('/inspections')} className="px-6 py-2 text-gray-600 rounded-lg text-sm font-semibold hover:bg-white transition-colors">Inspections</button>
                 </div>
             </div>
 
-            {/* Rest of the page (Filter Bar, Table, Pagination) remains the same */}
-            <div className="overflow-x-auto">
+            {/* Filter Bar */}
+            <div className="flex-shrink-0 flex items-center space-x-4 mb-6">
+                <div className="relative flex-grow">
+                    <select className="absolute left-0 top-0 h-full pl-3 pr-8 border-r bg-transparent text-sm text-gray-600 z-10">
+                        <option>By Transformer No</option>
+                    </select>
+                    <input type="text" placeholder="Search Transformer" className="w-full p-3 pl-40 pr-12 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
+                    <button className="absolute right-0 top-0 h-full px-4 bg-blue-600 text-white rounded-r-lg hover:bg-blue-700 transition-colors">
+                        <Search size={20}/>
+                    </button>
+                </div>
+                <select className="p-3 border rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option>All Regions</option>
+                    <option>Nugegoda</option>
+                    <option>Maharagama</option>
+                </select>
+                <select className="p-3 border rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500">
+                    <option>All Types</option>
+                    <option>Bulk</option>
+                    <option>Distribution</option>
+                </select>
+                <button className="p-3 border rounded-lg text-gray-600 hover:bg-gray-100 text-sm transition-colors">Reset Filters</button>
+            </div>
+
+            {/* Transformer Table - This section will grow and scroll */}
+            <div className="flex-1 overflow-y-auto">
                 <table className="w-full text-left">
-                    {/* ... table content ... */}
+                    <thead className="bg-gray-50 border-b sticky top-0">
+                        <tr>
+                            <th className="p-4 w-12"></th>
+                            <th className="p-4 text-sm font-semibold text-gray-600">Transformer No.</th>
+                            <th className="p-4 text-sm font-semibold text-gray-600">Pole No.</th>
+                            <th className="p-4 text-sm font-semibold text-gray-600">Region</th>
+                            <th className="p-4 text-sm font-semibold text-gray-600">Type</th>
+                            <th className="p-4 text-sm font-semibold text-gray-600 text-center">Actions</th>
+                            <th className="p-4 w-12"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {transformersData.map((transformer, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
+                                <td className="p-4 text-center">
+                                    <Star size={18} className="text-gray-400 cursor-pointer hover:text-yellow-500 transition-colors"/>
+                                </td>
+                                <td className="p-4 text-sm font-medium text-gray-800">{transformer.no}</td>
+                                <td className="p-4 text-sm text-gray-600">{transformer.pole}</td>
+                                <td className="p-4 text-sm text-gray-600">{transformer.region}</td>
+                                <td className="p-4 text-sm text-gray-600">{transformer.type}</td>
+                                <td className="p-4 text-center">
+                                    <button 
+                                        onClick={() => navigate(`/transformers/${transformer.no}/history`)}
+                                        className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 text-base font-bold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 border-2 border-blue-600"
+                                        style={{ backgroundColor: '#2563eb', color: 'white' }}
+                                    >
+                                        View
+                                    </button>
+                                </td>
+                                <td className="p-4 text-center">
+                                    <button className="text-gray-500 hover:text-gray-800 transition-colors">
+                                        <MoreVertical size={18}/>
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
                 </table>
             </div>
-            <Pagination />
+            
+            {/* Pagination */}
+            <div className="flex-shrink-0">
+                <Pagination />
+            </div>
         </PageLayout>
     );
 };
