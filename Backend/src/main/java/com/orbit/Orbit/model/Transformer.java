@@ -6,6 +6,9 @@ public class Transformer {
     private String region;
     private String type;
 
+    public Transformer(){
+
+    }
 
     public Transformer(String transformerNumber, String poleNumber, String region, String type) {
         this.transformerNumber = transformerNumber;
