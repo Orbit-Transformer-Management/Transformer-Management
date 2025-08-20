@@ -4,6 +4,7 @@ import DashboardPage from './pages/DashboardPage';
 import TransformersListPage from './pages/TransformersListPage';
 import InspectionsPage from './pages/InspectionsPage';
 import TransformerDetailPage from './pages/TransformerDetailPage';
+import TransformerHistoryPage from './pages/TransformerHistoryPage';
 
 function App() {
   return (
@@ -15,7 +16,10 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/transformers" element={<TransformersListPage />} />
           <Route path="/inspections" element={<InspectionsPage />} />
-          <Route path="/transformers/:id" element={<TransformerDetailPage />} />
+          {/* Transformer History/Details Page */}
+          <Route path="/transformers/:id/history" element={<TransformerHistoryPage />} />
+          {/* Transformer Upload Images Page */}
+          <Route path="/transformers/:id/upload" element={<TransformerDetailPage />} />
           <Route path="/settings" element={<div>Settings Page</div>} />
         </Route>
       </Routes>
