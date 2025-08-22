@@ -63,6 +63,38 @@
       "poleNo": "01",
       "type": "Bulk",
       "locationDetails": "Colombo"
+    },
+    {
+      "id": "7293",
+      "region": "Nugegoda",
+      "transformerNo": "T-01",
+      "poleNo": "121",
+      "type": "Bulk",
+      "locationDetails": "Colombo"
+    },
+    {
+      "id": "1f69",
+      "region": "Nugegoda",
+      "transformerNo": "T05",
+      "poleNo": "3223",
+      "type": "Bulk",
+      "locationDetails": "Negambo"
+    },
+    {
+      "id": "7325",
+      "region": "Nugegoda",
+      "transformerNo": "33",
+      "poleNo": "323",
+      "type": "Bulk",
+      "locationDetails": "edede"
+    },
+    {
+      "id": "2aae",
+      "region": "Nugegoda",
+      "transformerNo": "ewwe",
+      "poleNo": "wewe",
+      "type": "Bulk",
+      "locationDetails": "wewe"
     }
   ],
   "inspections": [
@@ -142,6 +174,46 @@
       "maintenanceDate": "0323-03-22",
       "maintenanceTime": "15:23",
       "status": "In Progress"
+    },
+    {
+      "id": "8cc5",
+      "branch": "Nugegoda",
+      "inspectionNo": "125",
+      "transformerNo": "T-02",
+      "inspectionDate": "2121-12-05",
+      "inspectionTime": "14:12",
+      "maintenanceDate": "1221-02-21",
+      "maintenanceTime": "02:11",
+      "status": "Pending"
+    },
+    {
+      "id": "ce7b",
+      "branch": "Nugegoda",
+      "inspectionNo": "ds",
+      "transformerNo": "ds",
+      "inspectionDate": "0233-03-23",
+      "inspectionTime": "15:33",
+      "maintenanceDate": "0023-02-23",
+      "maintenanceTime": "15:22",
+      "status": "Pending"
+    }
+  ],
+  "transformerImages": [
+    {
+      "id": "369a",
+      "transformerId": "412",
+      "type": "thermal",
+      "condition": "Sunny",
+      "fileName": "pic_45578.jpg",
+      "url": "blob:http://localhost:5173/83008c3e-6083-4d1a-9083-aea0b07a5d78"
+    },
+    {
+      "id": "7f73",
+      "transformerId": "412",
+      "type": "baseline",
+      "condition": "Sunny",
+      "fileName": "pic_45578.jpg",
+      "url": "blob:http://localhost:5173/f89f46eb-aa46-4e20-a890-f00c876ed106"
     }
   ]
 }
