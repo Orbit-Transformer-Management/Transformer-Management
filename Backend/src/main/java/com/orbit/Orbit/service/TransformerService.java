@@ -1,8 +1,11 @@
 package com.orbit.Orbit.service;
 
 import com.orbit.Orbit.model.Transformer;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,6 +66,15 @@ public class TransformerService {
         } catch (IOException e) {
             throw new RuntimeException("Failed to save image", e);
         }
+    }
+
+    public Resource getBaseImage(String transformerNumber){
+        Transformer transformer = db.get(transformerNumber);
+        if (transformer.getBase_image_url()==null) return null;
+        String url = transformer.getBase_image_url(); // e.g. /files/transformers/123/uuid.png
+        Path path = Path.of("uploads", url.replace("/files/", ""));
+        Resource resource = new org.springframework.core.io.PathResource(path);
+        return resource;
     }
 
 
