@@ -1,0 +1,219 @@
+{
+  "transformers": [
+    {
+      "id": "4765",
+      "region": "Nugegoda",
+      "transformerNo": "412223wqw",
+      "poleNo": "3223001qwqw",
+      "type": "Bulk",
+      "locationDetails": "ja3213wqqwq2132323"
+    },
+    {
+      "id": "63ed",
+      "region": "Nugegoda",
+      "transformerNo": "33",
+      "poleNo": "33",
+      "type": "Bulk",
+      "locationDetails": "kandy"
+    },
+    {
+      "id": "9779",
+      "region": "Maharagama",
+      "transformerNo": "44",
+      "poleNo": "44",
+      "type": "Distribution",
+      "locationDetails": "fffdf"
+    },
+    {
+      "id": "6068",
+      "region": "Nugegoda",
+      "transformerNo": "55",
+      "poleNo": "55",
+      "type": "Bulk",
+      "locationDetails": "vfdvd"
+    },
+    {
+      "id": "af1f",
+      "region": "Nugegoda",
+      "transformerNo": "71",
+      "poleNo": "d23",
+      "type": "Bulk",
+      "locationDetails": "2121"
+    },
+    {
+      "id": "4a40",
+      "region": "Nugegoda",
+      "transformerNo": "7154",
+      "poleNo": "d2354",
+      "type": "Distribution",
+      "locationDetails": "2121rff"
+    },
+    {
+      "id": "d2cd",
+      "region": "Nugegoda",
+      "transformerNo": "5531",
+      "poleNo": "5531",
+      "type": "Bulk",
+      "locationDetails": "232"
+    },
+    {
+      "id": "613a",
+      "region": "Nugegoda",
+      "transformerNo": "T-01",
+      "poleNo": "01",
+      "type": "Bulk",
+      "locationDetails": "Colombo"
+    },
+    {
+      "id": "7293",
+      "region": "Nugegoda",
+      "transformerNo": "T-01",
+      "poleNo": "121",
+      "type": "Bulk",
+      "locationDetails": "Colombo"
+    },
+    {
+      "id": "1f69",
+      "region": "Nugegoda",
+      "transformerNo": "T05",
+      "poleNo": "3223",
+      "type": "Bulk",
+      "locationDetails": "Negambo"
+    },
+    {
+      "id": "7325",
+      "region": "Nugegoda",
+      "transformerNo": "33",
+      "poleNo": "323",
+      "type": "Bulk",
+      "locationDetails": "edede"
+    },
+    {
+      "id": "2aae",
+      "region": "Nugegoda",
+      "transformerNo": "ewwe",
+      "poleNo": "wewe",
+      "type": "Bulk",
+      "locationDetails": "wewe"
+    }
+  ],
+  "inspections": [
+    {
+      "id": "050b",
+      "branch": "Maharagama",
+      "inspectionNo": "1",
+      "transformerNo": "412",
+      "inspectionDate": "2025-07-30",
+      "inspectionTime": "14:58",
+      "maintenanceDate": "2025-07-03",
+      "maintenanceTime": "14:57",
+      "status": "Pending"
+    },
+    {
+      "id": "6cf0",
+      "branch": "Nugegoda",
+      "inspectionNo": "weeewe",
+      "transformerNo": "ewweewee",
+      "inspectionDate": "2025-08-07",
+      "inspectionTime": "14:01",
+      "maintenanceDate": "",
+      "maintenanceTime": "",
+      "status": "Pending"
+    },
+    {
+      "id": "e4d5",
+      "branch": "Nugegoda",
+      "inspectionNo": "weeewe",
+      "transformerNo": "ewweewee",
+      "inspectionDate": "2025-08-07",
+      "inspectionTime": "",
+      "maintenanceDate": "",
+      "maintenanceTime": "",
+      "status": ""
+    },
+    {
+      "id": "b851",
+      "branch": "Maharagama",
+      "inspectionNo": "15531",
+      "transformerNo": "5531",
+      "inspectionDate": "0121-12-12",
+      "inspectionTime": "12:12",
+      "maintenanceDate": "12121-02-12",
+      "maintenanceTime": "02:11",
+      "status": "Pending"
+    },
+    {
+      "id": "a3de",
+      "branch": "Nugegoda",
+      "inspectionNo": "9999",
+      "transformerNo": "99",
+      "inspectionDate": "0121-12-12",
+      "inspectionTime": "",
+      "maintenanceDate": "",
+      "maintenanceTime": "",
+      "status": "Pending"
+    },
+    {
+      "id": "6fc3",
+      "branch": "Nugegoda",
+      "inspectionNo": "158",
+      "transformerNo": "187",
+      "inspectionDate": "2005-12-12",
+      "inspectionTime": "13:21",
+      "maintenanceDate": "2006-12-12",
+      "maintenanceTime": "12:12",
+      "status": "Completed"
+    },
+    {
+      "id": "acf0",
+      "branch": "Nugegoda",
+      "inspectionNo": "43",
+      "transformerNo": "32",
+      "inspectionDate": "0003-12-31",
+      "inspectionTime": "14:13",
+      "maintenanceDate": "0323-03-22",
+      "maintenanceTime": "15:23",
+      "status": "In Progress"
+    },
+    {
+      "id": "8cc5",
+      "branch": "Nugegoda",
+      "inspectionNo": "125",
+      "transformerNo": "T-02",
+      "inspectionDate": "2121-12-05",
+      "inspectionTime": "14:12",
+      "maintenanceDate": "1221-02-21",
+      "maintenanceTime": "02:11",
+      "status": "Pending"
+    },
+    {
+      "id": "ce7b",
+      "branch": "Nugegoda",
+      "inspectionNo": "ds",
+      "transformerNo": "ds",
+      "inspectionDate": "0233-03-23",
+      "inspectionTime": "15:33",
+      "maintenanceDate": "0023-02-23",
+      "maintenanceTime": "15:22",
+      "status": "Pending"
+    }
+  ],
+  "transformerImages": [
+    {
+      "id": "369a",
+      "transformerId": "412",
+      "type": "thermal",
+      "condition": "Sunny",
+      "fileName": "pic_45578.jpg",
+      "url": "blob:http://localhost:5173/83008c3e-6083-4d1a-9083-aea0b07a5d78"
+    },
+    {
+      "id": "7f73",
+      "transformerId": "412",
+      "type": "baseline",
+      "condition": "Sunny",
+      "fileName": "pic_45578.jpg",
+      "url": "blob:http://localhost:5173/f89f46eb-aa46-4e20-a890-f00c876ed106"
+    }
+  ]
+}

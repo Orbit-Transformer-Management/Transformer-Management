@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/common/Header';
 import { UploadCloud, Image, Sun, Cloud, CloudRain, Upload, X, ChevronLeft, Check } from 'lucide-react';
+import axios from 'axios';
 
 interface UploadProgress {
   isVisible: boolean;
@@ -38,6 +39,7 @@ const TransformerDetailPage = () => {
     const [baselineImage, setBaselineImage] = useState<{url: string, fileName: string} | null>(
         existingBaseline ? { url: existingBaseline.url, fileName: existingBaseline.fileName } : null
     );
+      
 
     const environmentalConditions = [
         { name: 'Sunny', icon: <Sun size={16} /> },
@@ -45,49 +47,50 @@ const TransformerDetailPage = () => {
         { name: 'Rainy', icon: <CloudRain size={16} /> },
     ];
 
-    const simulateUpload = (file: File, type: 'thermal' | 'baseline') => {
-        setUploadProgress({
-            isVisible: true,
-            progress: 0,
-            fileName: file.name,
-            type
+    const uploadImage = async (file: File, type: 'thermal' | 'baseline', condition: string) => {
+    setUploadProgress({ isVisible: true, progress: 0, fileName: file.name, type });
+
+    try {
+        const res = await axios.post('http://localhost:5000/transformerImages', {
+        transformerId: id || '',
+        type,
+        condition,
+        fileName: file.name,
+        url: URL.createObjectURL(file) // simulating real URL for now
         });
 
-        const interval = setInterval(() => {
-            setUploadProgress(prev => {
-                if (prev.progress >= 100) {
-                    clearInterval(interval);
-                    setTimeout(() => {
-                        setUploadProgress(prev => ({ ...prev, isVisible: false }));
-                        // Set the uploaded image
-                        const imageUrl = URL.createObjectURL(file);
-                        if (type === 'thermal') {
-                            setThermalImage({ url: imageUrl, fileName: file.name });
-                        } else {
-                            setBaselineImage({ url: imageUrl, fileName: file.name });
-                        }
-                    }, 1000);
-                    return { ...prev, progress: 100 };
-                }
-                return { ...prev, progress: prev.progress + 10 };
-            });
-        }, 200);
+        const uploadedUrl = res.data.url;
+
+        if (type === 'thermal') setThermalImage({ url: uploadedUrl, fileName: file.name });
+        else setBaselineImage({ url: uploadedUrl, fileName: file.name });
+
+        setTimeout(() => setUploadProgress(prev => ({ ...prev, isVisible: false })), 1000);
+
+    } catch (err) {
+        console.error('Upload failed:', err);
+        setUploadProgress(prev => ({ ...prev, isVisible: false }));
+    }
+    };
+
+    
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'thermal' | 'baseline') => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const condition = type === 'thermal' ? thermalCondition : baselineCondition;
+            uploadImage(files[0], type, condition);
+        }
     };
 
     const handleDrop = (e: React.DragEvent, type: 'thermal' | 'baseline') => {
         e.preventDefault();
         const files = Array.from(e.dataTransfer.files);
         if (files.length > 0 && files[0].type.startsWith('image/')) {
-            simulateUpload(files[0], type);
+            const condition = type === 'thermal' ? thermalCondition : baselineCondition;
+            uploadImage(files[0], type, condition);
         }
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'thermal' | 'baseline') => {
-        const files = e.target.files;
-        if (files && files.length > 0) {
-            simulateUpload(files[0], type);
-        }
-    };
 
     const ProgressModal = () => {
         if (!uploadProgress.isVisible) return null;

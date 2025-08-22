@@ -1,192 +1,127 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import PageLayout from '../components/common/PageLayout';
-import { ChevronLeft, Calendar, MapPin, Zap, Thermometer, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import PageLayout from '../components/common/PageLayout'; // Assuming PageLayout exists
+import { Star, MoreVertical, ChevronLeft } from 'lucide-react';
 
-const TransformerHistoryPage = () => {
-    const { id } = useParams();
+const TransformerInspectionsPage = () => {
     const navigate = useNavigate();
 
-    // Mock data for transformer history
+    // Mock data based on the provided image
     const transformerInfo = {
-        no: id || 'AZ-8890',
-        pole: 'EN-122-A',
-        region: 'Nugegoda',
+        id: 'AZ-8370',
+        location: '"Keels", Embuldeniya',
+        poleNo: 'EN-122-A',
+        capacity: '102.97',
         type: 'Bulk',
-        location: 'Nugegoda "Keels", Embuldeniya',
-        capacity: '102.97 kVA',
         feeders: 2,
-        installDate: '15 Jan, 2020',
-        lastInspection: '21 May, 2023 12:55 PM'
+        lastInspected: 'Mon(21), May, 2023 12.55pm'
     };
 
-    const inspectionHistory = [
-        {
-            date: '21 May, 2023 12:55 PM',
-            inspector: 'John Silva',
-            status: 'Completed',
-            temperature: '68°C',
-            condition: 'Good',
-            notes: 'All parameters within normal range. No issues detected.',
-            type: 'Routine Inspection'
-        },
-        {
-            date: '15 Feb, 2023 09:30 AM',
-            inspector: 'Maria Fernando',
-            status: 'Completed',
-            temperature: '72°C',
-            condition: 'Good',
-            notes: 'Minor oil leak detected, maintenance scheduled.',
-            type: 'Routine Inspection'
-        },
-        {
-            date: '20 Nov, 2022 14:15 PM',
-            inspector: 'Kamal Perera',
-            status: 'Completed',
-            temperature: '75°C',
-            condition: 'Warning',
-            notes: 'Temperature slightly elevated, recommend monitoring.',
-            type: 'Emergency Inspection'
-        },
-        {
-            date: '10 Aug, 2022 11:00 AM',
-            inspector: 'Sarah Jones',
-            status: 'Completed',
-            temperature: '65°C',
-            condition: 'Excellent',
-            notes: 'Transformer operating optimally.',
-            type: 'Routine Inspection'
-        }
+    const inspections = [
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: '-', status: 'In Progress', isFavorite: true },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: '-', status: 'In Progress', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: '-', status: 'Pending', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
+        { inspectionNo: '000123589', inspectedDate: 'Mon(21), May, 2023 12.55pm', maintenanceDate: 'Mon(21), May, 2023 12.55pm', status: 'Completed', isFavorite: false },
     ];
 
-    const getStatusIcon = (condition: string) => {
-        switch (condition) {
-            case 'Excellent':
-            case 'Good':
-                return <CheckCircle className="text-green-500" size={20} />;
-            case 'Warning':
-                return <AlertTriangle className="text-yellow-500" size={20} />;
+    const getStatusClass = (status) => {
+        switch (status) {
+            case 'In Progress':
+                return 'bg-green-100 text-green-700';
+            case 'Pending':
+                return 'bg-red-100 text-red-700';
+            case 'Completed':
+                return 'bg-gray-200 text-gray-800';
             default:
-                return <AlertTriangle className="text-red-500" size={20} />;
+                return 'bg-gray-100 text-gray-600';
         }
     };
 
-    const getConditionClass = (condition: string) => {
-        switch (condition) {
-            case 'Excellent': return 'bg-green-100 text-green-800';
-            case 'Good': return 'bg-green-100 text-green-800';
-            case 'Warning': return 'bg-yellow-100 text-yellow-800';
-            default: return 'bg-red-100 text-red-800';
-        }
-    };
+    const InfoCard = ({ label, value }) => (
+        <div className="bg-gray-100 p-2 rounded-md text-center">
+            <p className="text-sm text-gray-500">{label}</p>
+            <p className="font-bold text-gray-800">{value}</p>
+        </div>
+    );
 
     return (
-        <PageLayout title={`Transformer Details - ${transformerInfo.no}`}>
-            {/* Header with Back Button */}
-            <div className="flex-shrink-0 flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-4">
-                    <button onClick={() => navigate('/transformers')} className="p-2 rounded-full hover:bg-gray-100">
-                        <ChevronLeft size={24} />
+        <PageLayout title={`Transformer Details - ${transformerInfo.id}`}>
+            {/* Header Section */}
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center space-x-3">
+                    <button 
+                        onClick={() => navigate(-1)} 
+                        className="p-2 rounded-full hover:bg-gray-200 transition-colors"
+                        aria-label="Go back"
+                    >
+                        <ChevronLeft size={24} className="text-gray-700" />
                     </button>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-800">{transformerInfo.no}</h2>
-                        <p className="text-gray-600">{transformerInfo.location}</p>
+                        <h1 className="text-2xl font-bold">{transformerInfo.id}</h1>
+                        <p className="text-gray-500">{transformerInfo.location}</p>
                     </div>
                 </div>
-                <button 
-                    onClick={() => navigate(`/transformers/${id}/upload`)}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold shadow-lg transition-all duration-200"
-                >
-                    Upload Images
-                </button>
-            </div>
-
-            {/* Transformer Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-blue-600 text-sm font-semibold">Pole Number</p>
-                            <p className="text-xl font-bold text-blue-800">{transformerInfo.pole}</p>
-                        </div>
-                        <MapPin className="text-blue-500" size={24} />
-                    </div>
-                </div>
-                
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-green-600 text-sm font-semibold">Capacity</p>
-                            <p className="text-xl font-bold text-green-800">{transformerInfo.capacity}</p>
-                        </div>
-                        <Zap className="text-green-500" size={24} />
-                    </div>
-                </div>
-                
-                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-purple-600 text-sm font-semibold">Type</p>
-                            <p className="text-xl font-bold text-purple-800">{transformerInfo.type}</p>
-                        </div>
-                        <Thermometer className="text-purple-500" size={24} />
-                    </div>
-                </div>
-                
-                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-orange-600 text-sm font-semibold">Feeders</p>
-                            <p className="text-xl font-bold text-orange-800">{transformerInfo.feeders}</p>
-                        </div>
-                        <Zap className="text-orange-500" size={24} />
-                    </div>
+                <div className="text-right pt-2">
+                    <p className="text-sm text-gray-500">Last Inspected Date: {transformerInfo.lastInspected}</p>
                 </div>
             </div>
 
-            {/* Inspection History */}
-            <div className="flex-1">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-gray-800">Inspection History</h3>
-                    <div className="text-sm text-gray-600">
-                        <span className="font-semibold">Last Inspection:</span> {transformerInfo.lastInspection}
-                    </div>
+            {/* Info Cards */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+                <InfoCard label="Pole No" value={transformerInfo.poleNo} />
+                <InfoCard label="Capacity" value={transformerInfo.capacity} />
+                <InfoCard label="Type" value={transformerInfo.type} />
+                <InfoCard label="No. of Feeders" value={transformerInfo.feeders} />
+            </div>
+
+            {/* Inspections Table */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold">Transformer Inspections</h2>
+                    <button
+                        onClick={() => { /* Handle Add Inspection */ }}
+                        className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 font-semibold shadow transition-colors"
+                    >
+                        Add Inspection
+                    </button>
                 </div>
 
-                <div className="space-y-4">
-                    {inspectionHistory.map((inspection, index) => (
-                        <div key={index} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-start justify-between">
-                                <div className="flex items-start space-x-4">
-                                    <div className="flex-shrink-0 mt-1">
-                                        {getStatusIcon(inspection.condition)}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="flex items-center space-x-3 mb-2">
-                                            <h4 className="font-bold text-gray-800">{inspection.type}</h4>
-                                            <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getConditionClass(inspection.condition)}`}>
-                                                {inspection.condition}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center space-x-6 text-sm text-gray-600 mb-2">
-                                            <div className="flex items-center space-x-2">
-                                                <Calendar size={16} />
-                                                <span>{inspection.date}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <Thermometer size={16} />
-                                                <span>{inspection.temperature}</span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <span className="font-semibold">Inspector:</span>
-                                                <span>{inspection.inspector}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-gray-700">{inspection.notes}</p>
-                                    </div>
-                                </div>
-                                <button className="text-blue-600 hover:text-blue-800 text-sm font-semibold">
-                                    View Details
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 text-sm font-semibold text-gray-500 px-4 mb-2">
+                    <div className="col-span-3">Inspection No</div>
+                    <div className="col-span-3">Inspected Date</div>
+                    <div className="col-span-3">Maintenance Date</div>
+                    <div className="col-span-1">Status</div>
+                    <div className="col-span-2 text-center">Actions</div>
+                </div>
+
+                {/* Table Body */}
+                <div className="space-y-2">
+                    {inspections.map((item, index) => (
+                        <div key={index} className="grid grid-cols-12 gap-4 items-center bg-gray-50 p-4 rounded-md hover:bg-gray-100">
+                            <div className="col-span-3 flex items-center">
+                                <Star className={`mr-3 ${item.isFavorite ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} size={20} />
+                                <span className="font-medium text-gray-800">{item.inspectionNo}</span>
+                            </div>
+                            <div className="col-span-3 text-gray-600">{item.inspectedDate}</div>
+                            <div className="col-span-3 text-gray-600">{item.maintenanceDate}</div>
+                            <div className="col-span-1">
+                                <span className={`px-3 py-1 text-xs font-bold rounded-full ${getStatusClass(item.status)}`}>
+                                    {item.status}
+                                </span>
+                            </div>
+                            <div className="col-span-2 flex items-center justify-end space-x-2">
+                                <button className="bg-indigo-500 text-white px-6 py-2 rounded-md text-sm font-semibold hover:bg-indigo-600">
+                                    View
+                                </button>
+                                <button className="text-gray-400 hover:text-gray-600 p-2">
+                                    <MoreVertical size={20} />
                                 </button>
                             </div>
                         </div>
@@ -197,4 +132,4 @@ const TransformerHistoryPage = () => {
     );
 };
 
-export default TransformerHistoryPage;
+export default TransformerInspectionsPage;
