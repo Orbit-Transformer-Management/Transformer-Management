@@ -13,6 +13,7 @@ import java.time.LocalTime;
 import java.util.Collection;
 import java.util.UUID;
 
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 public class InspectionController {
 

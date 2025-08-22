@@ -20,10 +20,17 @@ const AddTransformerModal: React.FC<AddTransformerModalProps> = ({ isOpen, onClo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const formData = { region, transformerNo, poleNo, type, locationDetails };
+    const transformerPayload = { 
+        region, 
+        transformerNumber: transformerNo, 
+        poleNumber: poleNo, 
+        type, 
+        locationDetails 
+      };
+
 
     try {
-      const res = await axios.post("http://localhost:5000/transformers", formData);
+      const res = await axios.post("http://localhost:8080/api/v1/transformers", transformerPayload);
       console.log("API Response:", res.data);
 
       if (onAddSuccess) onAddSuccess(); // Refresh table

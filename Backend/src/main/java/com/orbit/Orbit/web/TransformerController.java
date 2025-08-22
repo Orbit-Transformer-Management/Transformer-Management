@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 public class TransformerController {
 
@@ -53,13 +54,7 @@ public class TransformerController {
 
 
     @PostMapping("/api/v1/transformers")
-    public ResponseEntity<Transformer> create(
-            @RequestParam("transformerNo") String transformerNumber,
-            @RequestParam("poleNo") String poleNumber,
-            @RequestParam("region") String region,
-            @RequestParam("type") String type,
-            @RequestParam("locationDetails") String locationDetails){
-        Transformer transformer = new Transformer(transformerNumber,poleNumber,region,type,locationDetails);
+    public ResponseEntity<Transformer> create(@RequestBody Transformer transformer){
         transformerService.save(transformer);
         return ResponseEntity
                 .status(HttpStatus.CREATED)  // 201 Created
