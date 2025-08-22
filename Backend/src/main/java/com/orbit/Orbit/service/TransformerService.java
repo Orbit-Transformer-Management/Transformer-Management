@@ -2,7 +2,11 @@ package com.orbit.Orbit.service;
 
 import com.orbit.Orbit.model.Transformer;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,6 +28,8 @@ public class TransformerService {
         return db.get(transformerNumber);
     }
 
+
+
     public void save(Transformer transformer){
         db.put(transformer.getTransformerNumber(),transformer);
     }
@@ -31,6 +37,32 @@ public class TransformerService {
     public boolean delete(String transformerNumber){
         Transformer transformer = db.remove(transformerNumber);
         return transformer != null;
+    }
+
+
+    public String saveBaseImage(String transformerNumber, MultipartFile image) {
+        try {
+            // Base directory: uploads/transformers/{transformerNumber}
+            Path dir = Path.of("uploads", "transformers", transformerNumber);
+            Files.createDirectories(dir);
+
+            // Create a safe filename with UUID to avoid collisions
+            String original = image.getOriginalFilename();
+            String filename = (original == null || original.isBlank()) ? "image" : original;
+
+            Path dest = dir.resolve(filename);
+            image.transferTo(dest);
+            // Return public URL mapping (e.g., /files/transformers/{transformerNumber}/{filename})
+            String final_url = "/files/transformers/" + transformerNumber + "/" + filename;
+
+            Transformer transformer = db.get(transformerNumber);
+            transformer.setBase_image_url(final_url);
+            return final_url;
+
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save image", e);
+        }
     }
 
 

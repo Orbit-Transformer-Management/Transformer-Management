@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -22,9 +21,6 @@ public class TransformerController {
     }
 
 
-
-
-
     @GetMapping("/api/v1/transformers")
     public Collection<Transformer> get(){
         return transformerService.get();
@@ -34,18 +30,35 @@ public class TransformerController {
         return transformerService.get(transformerNumber);
     }
 
+
+
     @PostMapping("/api/v1/transformers")
-    public String create(@RequestBody Transformer transformer) {
+    public String create(@RequestParam("poleNumber") String poleNumber,
+                         @RequestParam("region") String region,
+                         @RequestParam("type") String type){
+        Transformer transformer = new Transformer();
         transformer.setTransformerNumber(UUID.randomUUID().toString());
+        transformer.setPoleNumber(poleNumber);
+        transformer.setRegion(region);
+        transformer.setType(type);
         transformerService.save(transformer);
         return transformer.getTransformerNumber(); // Spring will return it as JSON
     }
+
+    @PostMapping("/api/v1/transformers/{transformerNumber}/image")
+    public String uploadImage(
+            @PathVariable String transformerNumber,
+            @RequestPart("image") MultipartFile image){
+        String publicUrl = transformerService.saveBaseImage(transformerNumber, image);
+        return publicUrl;
+    }
+
 
     @DeleteMapping("/api/v1/transformers/{transformerNumber}")
     public void delete(@PathVariable String transformerNumber){
         if(!transformerService.delete(transformerNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-    }
 
+    }
 }

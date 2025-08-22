@@ -5,6 +5,7 @@ public class Transformer {
     private String poleNumber;
     private String region;
     private String type;
+    private String base_image_url;
 
     public Transformer(){
 
@@ -47,5 +48,13 @@ public class Transformer {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getBase_image_url() {
+        return base_image_url;
+    }
+
+    public void setBase_image_url(String base_image_url) {
+        this.base_image_url = base_image_url;
     }
 }
