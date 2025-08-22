@@ -48,20 +48,18 @@ public class TransformerController {
         return ResponseEntity.ok()
                 .headers(headers)
                 .body(image);
-
     }
 
 
 
     @PostMapping("/api/v1/transformers")
-    public ResponseEntity<Transformer> create(@RequestParam("poleNumber") String poleNumber,
-                         @RequestParam("region") String region,
-                         @RequestParam("type") String type){
-        Transformer transformer = new Transformer();
-        transformer.setTransformerNumber(UUID.randomUUID().toString());
-        transformer.setPoleNumber(poleNumber);
-        transformer.setRegion(region);
-        transformer.setType(type);
+    public ResponseEntity<Transformer> create(
+            @RequestParam("transformerNo") String transformerNumber,
+            @RequestParam("poleNo") String poleNumber,
+            @RequestParam("region") String region,
+            @RequestParam("type") String type,
+            @RequestParam("locationDetails") String locationDetails){
+        Transformer transformer = new Transformer(transformerNumber,poleNumber,region,type,locationDetails);
         transformerService.save(transformer);
         return ResponseEntity
                 .status(HttpStatus.CREATED)  // 201 Created

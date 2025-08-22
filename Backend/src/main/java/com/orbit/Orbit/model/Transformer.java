@@ -5,6 +5,7 @@ public class Transformer {
     private String poleNumber;
     private String region;
     private String type;
+    private String locationDetails;
     private String content_type;
     private String base_image_url;
 
@@ -12,11 +13,12 @@ public class Transformer {
 
     }
 
-    public Transformer(String transformerNumber, String poleNumber, String region, String type) {
+    public Transformer(String transformerNumber, String poleNumber, String region, String type, String locationDetails) {
         this.transformerNumber = transformerNumber;
         this.poleNumber = poleNumber;
         this.region = region;
         this.type = type;
+        this.locationDetails = locationDetails;
     }
 
     public String getTransformerNumber() {
@@ -65,5 +67,13 @@ public class Transformer {
 
     public void setContent_type(String content_type) {
         this.content_type = content_type;
+    }
+
+    public String getLocationDetails() {
+        return locationDetails;
+    }
+
+    public void setLocationDetails(String locationDetails) {
+        this.locationDetails = locationDetails;
     }
 }

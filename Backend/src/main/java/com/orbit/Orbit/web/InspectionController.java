@@ -35,9 +35,9 @@ public class InspectionController {
     }
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/image")
-    public ResponseEntity<Resource> getimage(@PathVariable String InspectionNumber){
+    public ResponseEntity<Resource> getimage(@PathVariable String inspectionNumber){
         String fileName = "image.jpg";
-        Resource image = inspectionService.getInspectionImage(InspectionNumber);
+        Resource image = inspectionService.getInspectionImage(inspectionNumber);
         if (image==null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.IMAGE_JPEG);
@@ -54,25 +54,33 @@ public class InspectionController {
 
 
     @PostMapping("/api/v1/inspections")
-    public String create(@RequestParam("inspectionNumber") String inspectionNumber,
-                         @RequestParam("transformerNumber") String transformerNumber,
-                         @RequestParam("inspectionDate") LocalDate inspectionDate,
-                         @RequestParam("inspectionTime") LocalTime inspectionTime){
-        Inspection inspection = new Inspection("1", "2", "2", LocalDate.of(2025, 8, 22), LocalTime.of(14, 30));
-        inspection.setInspectionNumber(UUID.randomUUID().toString());
-        inspection.setTransformerNumber(transformerNumber);
-        inspection.setInspectionDate(inspectionDate);
-        inspection.setInspectionTime(inspectionTime);
+    public String create(@RequestParam("inspectionNo") String inspectionNumber,
+                         @RequestParam("inspectionNo") String transformerNumber,
+                         @RequestParam("inspectionDate") String inspectionDate,
+                         @RequestParam("inspectionTime") String inspectionTime,
+                         @RequestParam("maintenanceDate") String maintenceDate,
+                         @RequestParam("maintenanceTime") String maintenceTime,
+                         @RequestParam("status") String status,
+                         @RequestParam("branch") String branch){
+        Inspection inspection = new Inspection(inspectionNumber,transformerNumber,inspectionDate,inspectionTime,branch,maintenceDate,maintenceTime,status);
         inspectionService.save(inspection);
         return inspection.getInspectionNumber(); // Spring will return it as JSON
     }
 
+//    @PostMapping("/api/v1/inspections/{inspectionNumber}/image")
+//    public String uploadImage(
+//            @PathVariable String inspectionNumber,
+//            @RequestPart("image") MultipartFile image){
+//        String publicUrl = inspectionService.saveInspectionImage(inspectionNumber, image);
+//        return publicUrl;
+//    }
+
     @PostMapping("/api/v1/inspections/{inspectionNumber}/image")
-    public String uploadImage(
+    public ResponseEntity<Void> uploadImage(
             @PathVariable String inspectionNumber,
             @RequestPart("image") MultipartFile image){
-        String publicUrl = inspectionService.saveInspectionImage(inspectionNumber, image);
-        return publicUrl;
+        String publicUrl = inspectionService.saveInspectionImage(inspectionNumber,image);
+        return ResponseEntity.ok().build();
     }
 
 

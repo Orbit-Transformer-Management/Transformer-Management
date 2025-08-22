@@ -1,6 +1,7 @@
 package com.orbit.Orbit.service;
 
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.Transformer;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,13 +21,7 @@ import java.util.Map;
 public class InspectionService {
 
     private Map<String, Inspection> db = new HashMap<>(){{
-        put("1", new Inspection(
-                "1",
-                "2",
-                "2",
-                LocalDate.of(2025, 8, 22),
-                LocalTime.of(14, 30)    // 2:30 PM
-        ));
+        put("1", new Inspection("1","1","1","1","1","1","1","1"));
     }};
 
 
