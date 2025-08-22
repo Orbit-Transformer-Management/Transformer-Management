@@ -1,6 +1,7 @@
 package com.orbit.Orbit.web;
 
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -54,18 +55,26 @@ public class InspectionController {
 
 
 
+//    @PostMapping("/api/v1/inspections")
+//    public String create(@RequestParam("inspectionNo") String inspectionNumber,
+//                         @RequestParam("inspectionNo") String transformerNumber,
+//                         @RequestParam("inspectionDate") String inspectionDate,
+//                         @RequestParam("inspectionTime") String inspectionTime,
+//                         @RequestParam("maintenanceDate") String maintenceDate,
+//                         @RequestParam("maintenanceTime") String maintenceTime,
+//                         @RequestParam("status") String status,
+//                         @RequestParam("branch") String branch){
+//        Inspection inspection = new Inspection(inspectionNumber,transformerNumber,inspectionDate,inspectionTime,branch,maintenceDate,maintenceTime,status);
+//        inspectionService.save(inspection);
+//        return inspection.getInspectionNumber(); // Spring will return it as JSON
+//    }
+
     @PostMapping("/api/v1/inspections")
-    public String create(@RequestParam("inspectionNo") String inspectionNumber,
-                         @RequestParam("inspectionNo") String transformerNumber,
-                         @RequestParam("inspectionDate") String inspectionDate,
-                         @RequestParam("inspectionTime") String inspectionTime,
-                         @RequestParam("maintenanceDate") String maintenceDate,
-                         @RequestParam("maintenanceTime") String maintenceTime,
-                         @RequestParam("status") String status,
-                         @RequestParam("branch") String branch){
-        Inspection inspection = new Inspection(inspectionNumber,transformerNumber,inspectionDate,inspectionTime,branch,maintenceDate,maintenceTime,status);
+    public ResponseEntity<Inspection> create(@RequestBody Inspection inspection){
         inspectionService.save(inspection);
-        return inspection.getInspectionNumber(); // Spring will return it as JSON
+        return ResponseEntity
+                .status(HttpStatus.CREATED)  // 201 Created
+                .body(inspection);
     }
 
 //    @PostMapping("/api/v1/inspections/{inspectionNumber}/image")

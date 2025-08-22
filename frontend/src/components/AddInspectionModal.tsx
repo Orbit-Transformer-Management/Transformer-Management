@@ -23,19 +23,21 @@ const AddInspectionModal: React.FC<AddInspectionModalProps> = ({ isOpen, onClose
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const formData = {
-      branch,
-      inspectionNo,
-      transformerNo,
+
+
+    const payload = {
+      inspectionNumber: inspectionNo,
+      transformerNumber: transformerNo,
       inspectionDate,
       inspectionTime,
+      branch,
       maintenanceDate,
       maintenanceTime,
       status,
-    };
+      };
 
     try {
-      const res = await axios.post('http://localhost:5000/inspections', formData);
+      const res = await axios.post('http://localhost:8080/api/v1/inspections', payload);
       console.log('API Response:', res.data);
 
       if (onAddSuccess) onAddSuccess(); // Refresh table in parent
