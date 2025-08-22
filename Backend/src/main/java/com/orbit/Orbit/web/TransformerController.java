@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -53,7 +54,7 @@ public class TransformerController {
 
 
     @PostMapping("/api/v1/transformers")
-    public String create(@RequestParam("poleNumber") String poleNumber,
+    public ResponseEntity<Transformer> create(@RequestParam("poleNumber") String poleNumber,
                          @RequestParam("region") String region,
                          @RequestParam("type") String type){
         Transformer transformer = new Transformer();
@@ -62,23 +63,25 @@ public class TransformerController {
         transformer.setRegion(region);
         transformer.setType(type);
         transformerService.save(transformer);
-        return transformer.getTransformerNumber(); // Spring will return it as JSON
+        return ResponseEntity
+                .status(HttpStatus.CREATED)  // 201 Created
+                .body(transformer);
     }
 
     @PostMapping("/api/v1/transformers/{transformerNumber}/image")
-    public String uploadImage(
+    public ResponseEntity<Void> uploadImage(
             @PathVariable String transformerNumber,
             @RequestPart("image") MultipartFile image){
         String publicUrl = transformerService.saveBaseImage(transformerNumber, image);
-        return publicUrl;
+        return ResponseEntity.ok().build();
     }
 
 
     @DeleteMapping("/api/v1/transformers/{transformerNumber}")
-    public void delete(@PathVariable String transformerNumber){
+    public ResponseEntity<Void> delete(@PathVariable String transformerNumber){
         if(!transformerService.delete(transformerNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-
+        return ResponseEntity.noContent().build();
     }
 }
