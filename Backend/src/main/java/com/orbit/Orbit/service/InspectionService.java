@@ -1,6 +1,7 @@
 package com.orbit.Orbit.service;
 
 import com.orbit.Orbit.dto.InspectionRequest;
+import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionRepo;
@@ -47,8 +48,13 @@ public class InspectionService {
         return inspectionRepository.save(inspection);
     }
 
-    public List<Inspection> get() {
-        return inspectionRepository.findAll();
+    public List<InspectionResponse> get() {
+        List<InspectionResponse> inspections = inspectionRepository
+                .findAll()
+                .stream()
+                .map(InspectionResponse::new)
+                .toList();
+        return inspections;
     }
 
     public Inspection get(String inspectionNumber) {

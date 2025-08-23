@@ -26,7 +26,7 @@ public class InspectionController {
 
 
     @GetMapping("/api/v1/inspections")
-    public Collection<Inspection> get(){
+    public Collection<InspectionResponse> get(){
         return inspectionService.get();
     }
 
