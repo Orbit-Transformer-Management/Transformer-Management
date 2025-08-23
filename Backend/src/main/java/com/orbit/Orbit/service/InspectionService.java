@@ -1,7 +1,7 @@
 package com.orbit.Orbit.service;
 
 import com.orbit.Orbit.model.Inspection;
-import com.orbit.Orbit.model.Transformer;
+import com.orbit.Orbit.repo.InspectionRepo;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,41 +15,41 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class InspectionService {
 
-    private Map<String, Inspection> db = new HashMap<>(){{
-        put("1", new Inspection("1","1","1","1","1","1","1","1"));
-    }};
+    private final InspectionRepo inspectionRepository;
 
-
-
-    public Collection<Inspection> get() {
-        return db.values();
+    public InspectionService(InspectionRepo inspectionRepository) {
+        this.inspectionRepository = inspectionRepository;
     }
 
-    public Inspection get(String inspectionNumber) {
-        return db.get(inspectionNumber);
+    public Inspection save(Inspection inspection){
+        return inspectionRepository.save(inspection);
+    }
+
+    public List<Inspection> get() {
+        return inspectionRepository.findAll();
+    }
+
+    public Inspection get(String transformerNumber) {
+        return inspectionRepository.findById(transformerNumber).orElse(null);
+    }
+
+    public boolean delete(String transformerNumber){
+        if (!inspectionRepository.existsById(transformerNumber)) return false;
+        inspectionRepository.deleteById(transformerNumber);
+        return true;
     }
 
 
-
-    public void save(Inspection inspection){
-        db.put(inspection.getInspectionNumber(),inspection);
-    }
-
-    public boolean delete(String inspectionNumber){
-        Inspection Inspection = db.remove(inspectionNumber);
-        return Inspection != null;
-    }
-
-
-    public String saveInspectionImage(String InspectionNumber, MultipartFile image) {
+    public String saveInspectionImage(String inspectionNumber, MultipartFile image) {
         try {
             // Base directory: uploads/Inspections/{InspectionNumber}
-            Path dir = Path.of("uploads", "inspections", InspectionNumber);
+            Path dir = Path.of("uploads", "inspections", inspectionNumber);
             Files.createDirectories(dir);
 
             // Create a safe filename with UUID to avoid collisions
@@ -59,10 +59,11 @@ public class InspectionService {
             Path dest = dir.resolve(filename);
             image.transferTo(dest);
             // Return public URL mapping (e.g., /files/Inspections/{InspectionNumber}/{filename})
-            String final_url = "/files/inspections/" + InspectionNumber + "/" + filename;
+            String final_url = "/files/inspections/" + inspectionNumber + "/" + filename;
 
-            Inspection Inspection = db.get(InspectionNumber);
-            Inspection.setInspection_image_url(final_url);
+            Inspection inspection = this.get(inspectionNumber);
+            inspection.setInspection_image_url(final_url);
+            this.save(inspection);
             return final_url;
 
 
@@ -72,7 +73,7 @@ public class InspectionService {
     }
 
     public Resource getInspectionImage(String InspectionNumber){
-        Inspection Inspection = db.get(InspectionNumber);
+        Inspection Inspection = this.get(InspectionNumber);
         if (Inspection.getInspectionDate()==null) return null;
         String url = Inspection.getInspection_image_url(); // e.g. /files/Inspections/123/uuid.png
         Path path = Path.of("uploads", url.replace("/files/", ""));
