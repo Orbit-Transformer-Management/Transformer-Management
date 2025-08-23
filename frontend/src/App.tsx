@@ -3,7 +3,7 @@ import MainLayout from './components/common/MainLayout';
 import DashboardPage from './pages/DashboardPage';
 import TransformersListPage from './pages/TransformersListPage';
 import InspectionsPage from './pages/InspectionsPage';
-import InspectionUploadPage from './pages/InspectionUploadPage';
+import InspectionUploadPage from './pages/InspectionUploadPage'; //renamed hare
 import TransformerHistoryPage from './pages/TransformerHistoryPage';
 
 function App() {
