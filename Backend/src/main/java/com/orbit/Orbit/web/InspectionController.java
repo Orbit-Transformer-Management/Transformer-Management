@@ -101,8 +101,8 @@ public class InspectionController {
 
 
     @DeleteMapping("/api/v1/inspections/{inspectionNumber}")
-    public void delete(@PathVariable("inspectionNumber") String inspectionNumber) {
-        if (!inspectionService.delete(inspectionNumber)) {
+    public void delete(@PathVariable String InspectionNumber){
+        if(!inspectionService.delete(InspectionNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
