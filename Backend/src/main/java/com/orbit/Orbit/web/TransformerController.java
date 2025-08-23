@@ -35,6 +35,8 @@ public class TransformerController {
         return transformerService.get(transformerNumber);
     }
 
+
+
     @GetMapping("/api/v1/transformers/{transformerNumber}/image")
     public ResponseEntity<Resource> getimage(@PathVariable String transformerNumber){
         String fileName = "image.jpg";
