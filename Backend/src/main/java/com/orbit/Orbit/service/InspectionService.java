@@ -1,7 +1,11 @@
 package com.orbit.Orbit.service;
 
+import com.orbit.Orbit.dto.InspectionRequest;
+import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.Transformer;
+import com.orbit.Orbit.repo.InspectionRepo;
+import com.orbit.Orbit.repo.TransformerRepo;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -15,41 +19,63 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class InspectionService {
 
-    private Map<String, Inspection> db = new HashMap<>(){{
-        put("1", new Inspection("1","1","1","1","1","1","1","1"));
-    }};
+    private final InspectionRepo inspectionRepository;
 
+    private final TransformerService transformerService;
 
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService) {
+        this.inspectionRepository = inspectionRepository;
+        this.transformerService = transformerService;
+    }
 
-    public Collection<Inspection> get() {
-        return db.values();
+    public Inspection save(InspectionRequest req){
+        Inspection inspection = new Inspection();
+        Transformer transformer = transformerService.get(req.transformerNumber());
+        inspection.setInspectionNumber(req.inspectionNumber());
+        inspection.setTransformer(transformer); // FK via relation
+        inspection.setInspectionDate(req.inspectionDate());
+        inspection.setInspectionTime(req.inspectionTime());
+        inspection.setBranch(req.branch());
+        inspection.setMaintenanceDate(req.maintenanceDate());
+        inspection.setMaintenanceTime(req.maintenanceTime());
+        inspection.setStatus(req.status());
+        return inspectionRepository.save(inspection);
+    }
+
+    public List<InspectionResponse> get() {
+        List<InspectionResponse> inspections = inspectionRepository
+                .findAll()
+                .stream()
+                .map(InspectionResponse::new)
+                .toList();
+        return inspections;
     }
 
     public Inspection get(String inspectionNumber) {
-        return db.get(inspectionNumber);
+        return inspectionRepository.findById(inspectionNumber).orElse(null);
+    }
+
+    public boolean delete(String transformerNumber){
+        if (!inspectionRepository.existsById(transformerNumber)) return false;
+        inspectionRepository.deleteById(transformerNumber);
+        return true;
+    }
+
+    public List<Inspection> getInspectionofTransformer(String transformerNumber){
+        return inspectionRepository.findByTransformer_TransformerNumber(transformerNumber);
     }
 
 
-
-    public void save(Inspection inspection){
-        db.put(inspection.getInspectionNumber(),inspection);
-    }
-
-    public boolean delete(String inspectionNumber){
-        Inspection Inspection = db.remove(inspectionNumber);
-        return Inspection != null;
-    }
-
-
-    public String saveInspectionImage(String InspectionNumber, MultipartFile image) {
+    public String saveInspectionImage(String inspectionNumber, MultipartFile image) {
         try {
             // Base directory: uploads/Inspections/{InspectionNumber}
-            Path dir = Path.of("uploads", "inspections", InspectionNumber);
+            Path dir = Path.of("uploads", "inspections", inspectionNumber);
             Files.createDirectories(dir);
 
             // Create a safe filename with UUID to avoid collisions
@@ -59,11 +85,13 @@ public class InspectionService {
             Path dest = dir.resolve(filename);
             image.transferTo(dest);
             // Return public URL mapping (e.g., /files/Inspections/{InspectionNumber}/{filename})
-            String final_url = "/files/inspections/" + InspectionNumber + "/" + filename;
+            String final_url = "/files/inspections/" + inspectionNumber + "/" + filename;
 
-            Inspection Inspection = db.get(InspectionNumber);
-            Inspection.setInspection_image_url(final_url);
-            return final_url;
+            Inspection inspection = this.get(inspectionNumber);
+            inspection.setInspection_image_url(final_url);
+            this.inspectionRepository.save(inspection);
+
+        return final_url;
 
 
         } catch (IOException e) {
@@ -72,7 +100,7 @@ public class InspectionService {
     }
 
     public Resource getInspectionImage(String InspectionNumber){
-        Inspection Inspection = db.get(InspectionNumber);
+        Inspection Inspection = this.get(InspectionNumber);
         if (Inspection.getInspectionDate()==null) return null;
         String url = Inspection.getInspection_image_url(); // e.g. /files/Inspections/123/uuid.png
         Path path = Path.of("uploads", url.replace("/files/", ""));
