@@ -20,7 +20,7 @@ const TransformersListPage = () => {
     // Fetch transformers from API
     const fetchTransformers = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/transformers');
+            const res = await axios.get('http://localhost:8080/api/v1/transformers');
             setTransformersData(res.data);
         } catch (err) {
             console.error('Error fetching transformers:', err);
@@ -30,14 +30,31 @@ const TransformersListPage = () => {
     useEffect(() => {
         fetchTransformers();
     }, []);
+    
+
+    const handleDelete = async (transformerNumber: string) => {
+        if (!window.confirm("Are you sure you want to delete this transformer?")) return;
+
+        try {
+            await axios.delete(`http://localhost:8080/api/v1/transformers/${transformerNumber}`);
+            alert("Transformer deleted successfully!");
+            fetchTransformers(); // Refresh list after deletion
+        } catch (err) {
+            console.error('Error deleting transformer:', err);
+            alert("Failed to delete transformer");
+        }
+    };
+
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
     // Filtered data based on column filters
     const filteredData = transformersData.filter((t) => 
-        t.transformerNo.toLowerCase().includes(filters.transformerNo.toLowerCase()) &&
-        t.poleNo.toLowerCase().includes(filters.poleNo.toLowerCase()) &&
+        (t.transformerNo?.toLowerCase() ?? '').includes(filters.transformerNo.toLowerCase()) &&
+        (t.poleNo?.toLowerCase() ?? '').includes(filters.poleNo.toLowerCase()) &&
         (filters.region === '' || t.region === filters.region) &&
         (filters.type === '' || t.type === filters.type)
     );
+
 
     // Reset all filters
     const resetFilters = () => {
@@ -276,10 +293,10 @@ const TransformersListPage = () => {
                                             <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                                                 <Zap size={16} className="text-blue-600" />
                                             </div>
-                                            <span className="text-sm font-semibold text-gray-800">{transformer.transformerNo}</span>
+                                            <span className="text-sm font-semibold text-gray-800">{transformer.transformerNumber}</span>
                                         </div>
                                     </td>
-                                    <td className="p-4 text-sm text-gray-600 font-medium">{transformer.poleNo}</td>
+                                    <td className="p-4 text-sm text-gray-600 font-medium">{transformer.poleNumber}</td>
                                     <td className="p-4">
                                         <div className="flex items-center space-x-2">
                                             <MapPin size={14} className="text-gray-400" />
@@ -297,16 +314,61 @@ const TransformersListPage = () => {
                                     </td>
                                     <td className="p-4 text-center">
                                         <button 
-                                            onClick={() => navigate(`/transformers/${transformer.no}/history`)}
+                                            onClick={() => navigate(`/transformers/${transformer.transformerNo}/history`)}
                                             className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-blue-800 text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105"
                                         >
                                             View Details
                                         </button>
                                     </td>
                                     <td className="p-4 text-center">
-                                        <button className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100">
-                                            <MoreVertical size={16}/>
+
+                                    <td className="p-4 text-center relative">
+                                        {/* 3-dots button */}
+                                        <button
+                                            onClick={() =>
+                                                setOpenDropdown(
+                                                    openDropdown === transformer.transformerNumber
+                                                        ? null
+                                                        : transformer.transformerNumber
+                                                )
+                                            }
+                                            className="p-2 rounded-full hover:bg-gray-100 transition-colors shadow-sm"
+                                        >
+                                            <MoreVertical size={20} className="text-gray-600" />
                                         </button>
+
+                                        {/* Dropdown menu */}
+                                        {openDropdown === transformer.transformerNumber && (
+                                            <div className="absolute right-0 mt-2 w-32 bg-white border border-gray-200 rounded-xl shadow-lg z-20 animate-fadeIn">
+                                                <button
+                                                    onClick={() => {
+                                                        handleDelete(transformer.transformerNumber);
+                                                        setOpenDropdown(null);
+                                                    }}
+                                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <svg
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        className="h-4 w-4 mr-2"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                        strokeWidth={2}
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            d="M6 18L18 6M6 6l12 12"
+                                                        />
+                                                    </svg>
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
+
+
+
                                     </td>
                                 </tr>
                             ))}
@@ -315,10 +377,10 @@ const TransformersListPage = () => {
                 </div>
             </div>
             
-            {/* Pagination */}
+            {/* Pagination
             <div className="mt-6">
                 <Pagination />
-            </div>
+            </div> */}
         </PageLayout>
     );
 };

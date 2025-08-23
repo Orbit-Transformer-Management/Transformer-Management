@@ -27,22 +27,48 @@ const getStatusClass = (status: string) => {
     }
 };
 
-const InspectionsPage = () => {
+const InspectionsPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [inspections, setInspections] = useState<Inspection[]>([]);
     const navigate = useNavigate();
 
-    // Fetch inspections from API
     const fetchInspections = async () => {
         try {
-            const res = await axios.get<Inspection[]>('http://localhost:5000/inspections');
-            setInspections(res.data);
+            const res = await axios.get('http://localhost:8080/api/v1/inspections');
+            const mappedData = res.data.map((item: any) => ({
+                id: item.inspectionNumber,
+                inspectionNo: item.inspectionNumber,
+                transformerNo: item.transformerNumber,
+                inspectionDate: item.inspectionDate,
+                inspectionTime: item.inspectionTime,
+                branch: item.branch,
+                maintenanceDate: item.maintenanceDate,
+                maintenanceTime: item.maintenanceTime,
+                status: item.status
+            }));
+            setInspections(mappedData);
         } catch (err) {
             console.error('Error fetching inspections:', err);
         }
     };
 
-    // Fetch on component mount
+    const handleDelete = async (inspectionNo: string) => {
+    if (!window.confirm("Are you sure you want to delete this inspection?")) return;
+
+    try {
+        await axios.delete(`http://localhost:8080/api/v1/inspections/${inspectionNo}`);
+        alert("Inspection deleted successfully!");
+        fetchInspections(); // refresh list
+    } catch (err) {
+        console.error('Error deleting inspection:', err);
+        alert("Failed to delete inspection");
+    }
+    };
+
+
+    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+
     useEffect(() => {
         fetchInspections();
     }, []);
@@ -52,9 +78,9 @@ const InspectionsPage = () => {
             <AddInspectionModal 
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)}
-                onAddSuccess={fetchInspections} // refresh table after adding
+                onAddSuccess={fetchInspections}
             />
-            
+
             {/* Card Header */}
             <div className="flex-shrink-0 flex justify-between items-center mb-6">
                 <div className="flex items-center space-x-4">
@@ -126,11 +152,48 @@ const InspectionsPage = () => {
                                         View
                                     </button>
                                 </td>
-                                <td className="p-4 text-center">
-                                    <button className="text-gray-500 hover:text-gray-800 transition-colors">
-                                        <MoreVertical size={18}/>
+
+                                <td className="p-4 text-center relative">
+                                <button
+                                    onClick={() =>
+                                    setOpenDropdown(openDropdown === insp.inspectionNo ? null : insp.inspectionNo)
+                                    }
+                                    className="text-gray-500 hover:text-gray-800 transition-colors"
+                                >
+                                    <MoreVertical size={18} />
+                                </button>
+
+                                {openDropdown === insp.inspectionNo && (
+                                    <div className="absolute right-0 mt-2 w-32 bg-white border border-gray-200 rounded-xl shadow-lg z-20">
+                                    <button
+                                        onClick={() => {
+                                        handleDelete(insp.inspectionNo);
+                                        setOpenDropdown(null);
+                                        }}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    >
+                                        {/* X icon */}
+                                        <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-4 w-4 mr-2"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth={2}
+                                        >
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                        Delete
                                     </button>
+                                    </div>
+                                )}
                                 </td>
+
+
+
+
+
+
                             </tr>
                         ))}
                     </tbody>
