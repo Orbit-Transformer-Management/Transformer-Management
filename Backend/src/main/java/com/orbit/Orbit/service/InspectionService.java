@@ -1,7 +1,10 @@
 package com.orbit.Orbit.service;
 
+import com.orbit.Orbit.dto.InspectionRequest;
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionRepo;
+import com.orbit.Orbit.repo.TransformerRepo;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,11 +26,24 @@ public class InspectionService {
 
     private final InspectionRepo inspectionRepository;
 
-    public InspectionService(InspectionRepo inspectionRepository) {
+    private final TransformerService transformerService;
+
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService) {
         this.inspectionRepository = inspectionRepository;
+        this.transformerService = transformerService;
     }
 
-    public Inspection save(Inspection inspection){
+    public Inspection save(InspectionRequest req){
+        Inspection inspection = new Inspection();
+        Transformer transformer = transformerService.get(req.transformerNumber());
+        inspection.setInspectionNumber(req.inspectionNumber());
+        inspection.setTransformer(transformer); // FK via relation
+        inspection.setInspectionDate(req.inspectionDate());
+        inspection.setInspectionTime(req.inspectionTime());
+        inspection.setBranch(req.branch());
+        inspection.setMaintenanceDate(req.maintenanceDate());
+        inspection.setMaintenanceTime(req.maintenanceTime());
+        inspection.setStatus(req.status());
         return inspectionRepository.save(inspection);
     }
 
@@ -35,14 +51,18 @@ public class InspectionService {
         return inspectionRepository.findAll();
     }
 
-    public Inspection get(String transformerNumber) {
-        return inspectionRepository.findById(transformerNumber).orElse(null);
+    public Inspection get(String inspectionNumber) {
+        return inspectionRepository.findById(inspectionNumber).orElse(null);
     }
 
     public boolean delete(String transformerNumber){
         if (!inspectionRepository.existsById(transformerNumber)) return false;
         inspectionRepository.deleteById(transformerNumber);
         return true;
+    }
+
+    public List<Inspection> getInspectionofTransformer(String transformerNumber){
+        return inspectionRepository.findByTransformer_TransformerNumber(transformerNumber);
     }
 
 
@@ -63,8 +83,9 @@ public class InspectionService {
 
             Inspection inspection = this.get(inspectionNumber);
             inspection.setInspection_image_url(final_url);
-            this.save(inspection);
-            return final_url;
+            this.inspectionRepository.save(inspection);
+
+        return final_url;
 
 
         } catch (IOException e) {

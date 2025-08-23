@@ -1,7 +1,8 @@
 package com.orbit.Orbit.web;
 
+import com.orbit.Orbit.dto.InspectionRequest;
+import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
-import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -9,10 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.Collection;
-import java.util.UUID;
 
 @CrossOrigin(origins = "http://localhost:5173") // To fix the Cross Origin error
 @RestController
@@ -31,9 +29,15 @@ public class InspectionController {
     public Collection<Inspection> get(){
         return inspectionService.get();
     }
+
     @GetMapping("/api/v1/inspections/{inspectionNumber}")
     public Inspection get(@PathVariable String inspectionNumber){
         return inspectionService.get(inspectionNumber);
+    }
+
+    @GetMapping("/api/v1/transformers/{transformerNumber}/inspections")
+    public Collection<Inspection> getInspectionofTransformer(@PathVariable String transformerNumber){
+        return inspectionService.getInspectionofTransformer(transformerNumber);
     }
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/image")
@@ -70,11 +74,11 @@ public class InspectionController {
 //    }
 
     @PostMapping("/api/v1/inspections")
-    public ResponseEntity<Inspection> create(@RequestBody Inspection inspection){
-        inspectionService.save(inspection);
+    public ResponseEntity<String> create(@RequestBody InspectionRequest inspectionRequest){
+        inspectionService.save(inspectionRequest);
         return ResponseEntity
                 .status(HttpStatus.CREATED)  // 201 Created
-                .body(inspection);
+                .body("done");
     }
 
 //    @PostMapping("/api/v1/inspections/{inspectionNumber}/image")
@@ -92,6 +96,8 @@ public class InspectionController {
         String publicUrl = inspectionService.saveInspectionImage(inspectionNumber,image);
         return ResponseEntity.ok().build();
     }
+
+
 
 
     @DeleteMapping("/api/v1/inspections/{inspectionNumber}")
