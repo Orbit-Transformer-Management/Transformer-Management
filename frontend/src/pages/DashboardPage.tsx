@@ -1,38 +1,11 @@
 import React, { useState } from 'react';
-import { Zap, MapPin, ListTodo, AlertTriangle, CheckCircle2, Wind, TrendingUp, Activity, Shield, Settings, Bell, Search } from 'lucide-react';
-
-const PageLayout = ({ title, children }) => (
-  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-    <div className="max-w-7xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            {title}
-          </h1>
-          <p className="text-gray-600 mt-1">Monitor and manage your transformer network</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search transformers..." 
-              className="pl-10 pr-4 py-2 bg-white rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            />
-          </div>
-          <button className="relative p-2 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200">
-            <Bell size={20} className="text-gray-600" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">3</span>
-          </button>
-        </div>
-      </div>
-      {children}
-    </div>
-  </div>
-);
+import { useNavigate } from 'react-router-dom';
+import { Zap, MapPin, ListTodo, AlertTriangle, CheckCircle2, Wind, TrendingUp, Activity, Shield, Settings, Bell, Search, Plus, ChevronLeft, Filter, Calendar, Clock, Eye, Star, MoreVertical } from 'lucide-react';
+import PageLayout from '../components/common/PageLayout';
 
 const DashboardPage = () => {
   const [selectedTimeframe, setSelectedTimeframe] = useState('24h');
+  const navigate = useNavigate();
 
   const statsCards = [
     {
@@ -41,7 +14,10 @@ const DashboardPage = () => {
       change: "+12%",
       icon: Zap,
       color: "blue",
-      bgGradient: "from-blue-500 to-blue-600"
+      bgGradient: "from-blue-50 via-blue-100 to-indigo-100",
+      iconBg: "bg-blue-200",
+      textColor: "text-blue-800",
+      changeColor: "bg-green-100 text-green-600"
     },
     {
       title: "Active Units",
@@ -49,7 +25,10 @@ const DashboardPage = () => {
       change: "+5%",
       icon: CheckCircle2,
       color: "green",
-      bgGradient: "from-green-500 to-green-600"
+      bgGradient: "from-emerald-50 via-green-100 to-teal-100",
+      iconBg: "bg-green-200",
+      textColor: "text-green-800",
+      changeColor: "bg-green-100 text-green-600"
     },
     {
       title: "Maintenance Due",
@@ -57,7 +36,10 @@ const DashboardPage = () => {
       change: "-8%",
       icon: Settings,
       color: "orange",
-      bgGradient: "from-orange-500 to-orange-600"
+      bgGradient: "from-amber-50 via-yellow-100 to-orange-100",
+      iconBg: "bg-amber-200",
+      textColor: "text-amber-800",
+      changeColor: "bg-red-100 text-red-600"
     },
     {
       title: "Critical Alerts",
@@ -65,7 +47,10 @@ const DashboardPage = () => {
       change: "+15%",
       icon: AlertTriangle,
       color: "red",
-      bgGradient: "from-red-500 to-red-600"
+      bgGradient: "from-red-50 via-pink-100 to-rose-100",
+      iconBg: "bg-red-200",
+      textColor: "text-red-800",
+      changeColor: "bg-red-100 text-red-600"
     }
   ];
 
@@ -114,156 +99,265 @@ const DashboardPage = () => {
 
   return (
     <PageLayout title="Dashboard">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statsCards.map((stat, index) => (
-          <div key={index} className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.bgGradient} shadow-lg`}>
-                <stat.icon className="text-white" size={24} />
-              </div>
-              <span className={`text-sm font-semibold px-2 py-1 rounded-full ${
-                stat.change.startsWith('+') ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-              }`}>
-                {stat.change}
-              </span>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm font-medium">{stat.title}</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <div className="flex flex-col h-full space-y-8">
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Transformer List */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Transformer Status Overview</h2>
-                <div className="flex space-x-2">
-                  {['24h', '7d', '30d'].map((timeframe) => (
-                    <button
-                      key={timeframe}
-                      onClick={() => setSelectedTimeframe(timeframe)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                        selectedTimeframe === timeframe
-                          ? 'bg-blue-500 text-white shadow-md'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {timeframe}
-                    </button>
-                  ))}
+        {/* Enhanced Header */}
+        <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-3xl border border-amber-200 shadow-xl overflow-hidden">
+          <div className="relative p-8">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-amber-400 to-orange-400 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-5 -left-5 w-32 h-32 bg-gradient-to-br from-yellow-400 to-amber-400 rounded-full blur-2xl"></div>
+            </div>
+            
+            <div className="relative z-10 flex justify-between items-center">
+              <div className="flex items-center space-x-6">
+                <div className="flex items-center space-x-4">
+                  <div className="p-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg">
+                    <Activity size={32} className="text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold text-gray-800">
+                      System Dashboard
+                    </h1>
+                    <p className="text-lg mt-2 font-medium text-gray-700">
+                      Monitor and control electrical infrastructure
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {transformers.map((transformer, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-3 h-3 rounded-full ${
-                        transformer.status === 'Critical' ? 'bg-red-500' :
-                        transformer.status === 'Warning' ? 'bg-orange-500' :
-                        transformer.status === 'Maintenance' ? 'bg-gray-500' :
-                        'bg-green-500'
-                      }`}></div>
-                      <div>
-                        <p className="font-semibold text-gray-900">{transformer.id}</p>
-                        <p className="text-sm text-gray-500 flex items-center">
-                          <MapPin size={14} className="mr-1" />
-                          {transformer.location}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">Load: {transformer.load}%</p>
-                      <p className="text-sm text-gray-500">Temp: {transformer.temperature}°C</p>
-                    </div>
-                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      transformer.status === 'Critical' ? 'bg-red-100 text-red-700' :
-                      transformer.status === 'Warning' ? 'bg-orange-100 text-orange-700' :
-                      transformer.status === 'Maintenance' ? 'bg-gray-100 text-gray-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      {transformer.status}
-                    </div>
-                  </div>
-                ))}
+              
+              {/* Enhanced Tab Navigation */}
+              <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm">
+                <button 
+                  className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl shadow-lg text-lg font-bold transition-all duration-300 flex items-center space-x-2"
+                >
+                  <Activity size={18} />
+                  <span>Dashboard</span>
+                </button>
+                <button
+                  onClick={() => navigate('/transformers')}
+                  className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
+                >
+                  <Zap size={18} />
+                  <span>Transformers</span>
+                </button>
+                <button
+                  onClick={() => navigate('/inspections')}
+                  className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
+                >
+                  <ListTodo size={18} />
+                  <span>Inspections</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Notifications Panel */}
-        <div className="space-y-6">
-          {/* Quick Actions */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button className="flex flex-col items-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors duration-200">
-                <Activity className="text-blue-600 mb-2" size={24} />
-                <span className="text-sm font-medium text-blue-700">System Health</span>
-              </button>
-              <button className="flex flex-col items-center p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors duration-200">
-                <Shield className="text-green-600 mb-2" size={24} />
-                <span className="text-sm font-medium text-green-700">Security Status</span>
-              </button>
-              <button className="flex flex-col items-center p-4 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors duration-200">
-                <Settings className="text-orange-600 mb-2" size={24} />
-                <span className="text-sm font-medium text-orange-700">Maintenance</span>
-              </button>
-              <button className="flex flex-col items-center p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors duration-200">
-                <TrendingUp className="text-purple-600 mb-2" size={24} />
-                <span className="text-sm font-medium text-purple-700">Analytics</span>
-              </button>
+        {/* Enhanced Statistics Dashboard */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {statsCards.map((stat, index) => (
+            <div key={index} className={`bg-gradient-to-br ${stat.bgGradient} rounded-2xl p-6 border-2 border-${stat.color}-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`${stat.textColor} text-sm font-bold uppercase tracking-wide`}>{stat.title}</p>
+                  <p className={`text-4xl font-black ${stat.textColor} mt-2`}>{stat.value}</p>
+                  <p className={`${stat.textColor} text-xs mt-1 font-medium flex items-center`}>
+                    {stat.change.startsWith('+') ? <TrendingUp size={12} className="mr-1" /> : <TrendingUp size={12} className="mr-1 rotate-180" />}
+                    {stat.title === "Total Transformers" ? "Active Units" : 
+                     stat.title === "Active Units" ? "Running Smoothly" :
+                     stat.title === "Maintenance Due" ? "Needs Attention" : "System Alerts"}
+                  </p>
+                </div>
+                <div className={`p-4 ${stat.iconBg} rounded-2xl shadow-inner`}>
+                  <stat.icon size={32} className={stat.textColor} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Enhanced Transformer List */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 px-8 py-6 border-b-2 border-gray-200">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-800 flex items-center">
+                    <div className="p-3 bg-amber-100 rounded-xl mr-4">
+                      <Zap size={24} className="text-amber-600" />
+                    </div>
+                    Transformer Status Overview
+                  </h3>
+                  <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-gray-200 backdrop-blur-sm">
+                    {['24h', '7d', '30d'].map((timeframe) => (
+                      <button
+                        key={timeframe}
+                        onClick={() => setSelectedTimeframe(timeframe)}
+                        className={`px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
+                          selectedTimeframe === timeframe
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {timeframe}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-8">
+                <div className="space-y-4">
+                  {transformers.map((transformer, index) => (
+                    <div key={index} className="group flex items-center justify-between p-6 bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl hover:from-amber-50 hover:to-orange-50 transition-all duration-300 shadow-sm hover:shadow-md border border-gray-100">
+                      <div className="flex items-center space-x-6">
+                        <div className={`w-4 h-4 rounded-full shadow-lg ${
+                          transformer.status === 'Critical' ? 'bg-red-500 animate-pulse' :
+                          transformer.status === 'Warning' ? 'bg-orange-500' :
+                          transformer.status === 'Maintenance' ? 'bg-gray-500' :
+                          'bg-green-500'
+                        }`}></div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center shadow-lg">
+                            <Zap size={20} className="text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="text-lg font-black text-gray-800 group-hover:text-amber-600 transition-colors">{transformer.id}</p>
+                            <p className="text-sm text-gray-500 flex items-center font-medium">
+                              <MapPin size={14} className="mr-2" />
+                              {transformer.location}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-8">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-gray-900 mb-1">Load: {transformer.load}%</p>
+                          <p className="text-sm text-gray-600 font-medium">Temp: {transformer.temperature}°C</p>
+                        </div>
+                        
+                        <div className={`px-4 py-2 rounded-xl text-sm font-bold border-2 shadow-md ${
+                          transformer.status === 'Critical' ? 'bg-gradient-to-r from-red-100 to-pink-100 text-red-800 border-red-300' :
+                          transformer.status === 'Warning' ? 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800 border-amber-300' :
+                          transformer.status === 'Maintenance' ? 'bg-gradient-to-r from-gray-100 to-slate-100 text-gray-800 border-gray-300' :
+                          'bg-gradient-to-r from-emerald-100 to-green-100 text-green-800 border-green-300'
+                        }`}>
+                          {transformer.status}
+                        </div>
+
+                        <button className="inline-flex items-center bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white px-4 py-2 rounded-xl hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1">
+                          <Eye size={16} className="mr-2" />
+                          Details
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Notifications */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Recent Notifications</h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {notifications.map((notification, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors duration-200">
-                    <div className={`p-2 rounded-full mt-1 ${
-                      notification.color === 'red' ? 'bg-red-100' :
-                      notification.color === 'orange' ? 'bg-orange-100' :
-                      notification.color === 'green' ? 'bg-green-100' :
-                      'bg-blue-100'
-                    }`}>
-                      <notification.icon className={`${
-                        notification.color === 'red' ? 'text-red-600' :
-                        notification.color === 'orange' ? 'text-orange-600' :
-                        notification.color === 'green' ? 'text-green-600' :
-                        'text-blue-600'
-                      }`} size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-semibold text-sm ${
-                        notification.color === 'red' ? 'text-red-700' :
-                        notification.color === 'orange' ? 'text-orange-700' :
-                        notification.color === 'green' ? 'text-green-700' :
-                        'text-blue-700'
-                      }`}>
-                        {notification.title}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                        {notification.description}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-2 font-medium">
-                        {notification.time}
-                      </p>
-                    </div>
+          {/* Enhanced Sidebar */}
+          <div className="space-y-8">
+            
+            {/* Enhanced Quick Actions */}
+            <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-50 to-slate-100 px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center">
+                  <div className="p-2 bg-blue-100 rounded-xl mr-3">
+                    <Settings size={20} className="text-blue-600" />
                   </div>
-                ))}
+                  <h3 className="text-xl font-bold text-gray-800">Quick Actions</h3>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <button className="group flex flex-col items-center p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-1 border-2 border-blue-200">
+                    <div className="p-3 bg-blue-200 rounded-xl mb-3 group-hover:bg-blue-300 transition-colors">
+                      <Activity className="text-blue-800" size={24} />
+                    </div>
+                    <span className="text-sm font-bold text-blue-800">System Health</span>
+                  </button>
+                  
+                  <button className="group flex flex-col items-center p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl hover:from-green-100 hover:to-emerald-100 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-1 border-2 border-green-200">
+                    <div className="p-3 bg-green-200 rounded-xl mb-3 group-hover:bg-green-300 transition-colors">
+                      <Shield className="text-green-800" size={24} />
+                    </div>
+                    <span className="text-sm font-bold text-green-800">Security Status</span>
+                  </button>
+                  
+                  <button className="group flex flex-col items-center p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl hover:from-amber-100 hover:to-orange-100 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-1 border-2 border-amber-200">
+                    <div className="p-3 bg-amber-200 rounded-xl mb-3 group-hover:bg-amber-300 transition-colors">
+                      <Settings className="text-amber-800" size={24} />
+                    </div>
+                    <span className="text-sm font-bold text-amber-800">Maintenance</span>
+                  </button>
+                  
+                  <button className="group flex flex-col items-center p-6 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl hover:from-purple-100 hover:to-indigo-100 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-1 border-2 border-purple-200">
+                    <div className="p-3 bg-purple-200 rounded-xl mb-3 group-hover:bg-purple-300 transition-colors">
+                      <TrendingUp className="text-purple-800" size={24} />
+                    </div>
+                    <span className="text-sm font-bold text-purple-800">Analytics</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Enhanced Notifications */}
+            <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-50 to-slate-100 px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-red-100 rounded-xl mr-3">
+                      <Bell size={20} className="text-red-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800">Recent Notifications</h3>
+                  </div>
+                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 font-bold">4</span>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {notifications.map((notification, index) => (
+                    <div key={index} className="group flex items-start space-x-4 p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-2xl hover:from-amber-50 hover:to-orange-50 transition-all duration-300 shadow-sm hover:shadow-md border border-gray-100">
+                      <div className={`p-3 rounded-2xl shadow-inner ${
+                        notification.color === 'red' ? 'bg-red-100' :
+                        notification.color === 'orange' ? 'bg-amber-100' :
+                        notification.color === 'green' ? 'bg-green-100' :
+                        'bg-blue-100'
+                      }`}>
+                        <notification.icon className={`${
+                          notification.color === 'red' ? 'text-red-600' :
+                          notification.color === 'orange' ? 'text-amber-600' :
+                          notification.color === 'green' ? 'text-green-600' :
+                          'text-blue-600'
+                        }`} size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-bold text-sm group-hover:text-amber-600 transition-colors ${
+                          notification.color === 'red' ? 'text-red-700' :
+                          notification.color === 'orange' ? 'text-amber-700' :
+                          notification.color === 'green' ? 'text-green-700' :
+                          'text-blue-700'
+                        }`}>
+                          {notification.title}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-1 leading-relaxed font-medium">
+                          {notification.description}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-2 font-bold">
+                          {notification.time}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
