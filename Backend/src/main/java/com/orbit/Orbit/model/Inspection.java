@@ -1,8 +1,6 @@
 package com.orbit.Orbit.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -11,13 +9,18 @@ import java.time.LocalTime;
 @Table(name = "inspection")
 public class Inspection {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private String inspectionNumber;
+
+    @ManyToOne
+    @JoinColumn(name = "transformer_no", nullable = false)
     private String transformerNumber;
-    private String inspectionDate;
-    private String inspectionTime;
+
+    private LocalDate inspectionDate;
+    private LocalTime inspectionTime;
     private String branch;
-    private String maintenanceDate;
-    private String maintenanceTime;
+    private LocalDate maintenanceDate;
+    private LocalTime maintenanceTime;
     private String status;
     private String inspection_image_url;
 
