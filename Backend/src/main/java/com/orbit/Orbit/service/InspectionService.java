@@ -57,8 +57,10 @@ public class InspectionService {
         return inspections;
     }
 
-    public Inspection get(String inspectionNumber) {
-        return inspectionRepository.findById(inspectionNumber).orElse(null);
+    public InspectionResponse get(String inspectionNumber) {
+        return inspectionRepository.findById(inspectionNumber)
+                .map(InspectionResponse::new) // entity -> DTO
+                .orElse(null);
     }
 
     public boolean delete(String transformerNumber){
@@ -67,10 +69,12 @@ public class InspectionService {
         return true;
     }
 
-    public List<Inspection> getInspectionofTransformer(String transformerNumber){
-        return inspectionRepository.findByTransformer_TransformerNumber(transformerNumber);
+    public List<InspectionResponse> getInspectionOfTransformer(String transformerNumber) {
+        return inspectionRepository.findByTransformer_TransformerNumber(transformerNumber)
+                .stream()
+                .map(InspectionResponse::new) // convert entity -> DTO
+                .toList();
     }
-
 
     public String saveInspectionImage(String inspectionNumber, MultipartFile image) {
         try {
@@ -87,7 +91,8 @@ public class InspectionService {
             // Return public URL mapping (e.g., /files/Inspections/{InspectionNumber}/{filename})
             String final_url = "/files/inspections/" + inspectionNumber + "/" + filename;
 
-            Inspection inspection = this.get(inspectionNumber);
+            Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                    .orElse(null);
             inspection.setInspection_image_url(final_url);
             this.inspectionRepository.save(inspection);
 
@@ -99,10 +104,11 @@ public class InspectionService {
         }
     }
 
-    public Resource getInspectionImage(String InspectionNumber){
-        Inspection Inspection = this.get(InspectionNumber);
-        if (Inspection.getInspectionDate()==null) return null;
-        String url = Inspection.getInspection_image_url(); // e.g. /files/Inspections/123/uuid.png
+    public Resource getInspectionImage(String inspectionNumber){
+        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                .orElse(null);
+        if (inspection.getInspectionDate()==null) return null;
+        String url = inspection.getInspection_image_url(); // e.g. /files/Inspections/123/uuid.png
         Path path = Path.of("uploads", url.replace("/files/", ""));
         Resource resource = new org.springframework.core.io.PathResource(path);
         return resource;
