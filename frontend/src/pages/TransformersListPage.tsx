@@ -389,7 +389,7 @@ const TransformersListPage = () => {
                                         </td>
                                         <td className="p-6 text-center">
                                             <button 
-                                                onClick={() => navigate(`/transformers/${transformer.transformerNo}/history`)}
+                                                onClick={() => navigate(`/transformers/${transformer.transformerNumber}/history`)}
                                                 className="inline-flex items-center bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white px-6 py-3 rounded-xl hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
                                             >
                                                 <Eye size={16} className="mr-2" />

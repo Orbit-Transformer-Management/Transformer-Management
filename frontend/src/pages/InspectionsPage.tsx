@@ -187,7 +187,6 @@ const InspectionsPage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    
                     <div className="bg-gradient-to-br from-emerald-50 via-green-100 to-teal-100 rounded-2xl p-6 border-2 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                         <div className="flex items-center justify-between">
                             <div>
