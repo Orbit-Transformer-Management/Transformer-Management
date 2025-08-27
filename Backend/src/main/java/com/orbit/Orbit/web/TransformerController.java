@@ -54,12 +54,15 @@ public class TransformerController {
     }
 
     @PatchMapping ("/api/v1/transformers/{transformerNumber}")
-    public ResponseEntity<Transformer> partialUpdate(
+    public ResponseEntity<Void> partialUpdate(
             @PathVariable String transformerNumber,
             @RequestBody Transformer updates) {
 
-        Transformer updatedTransformer = transformerService.update(transformerNumber, updates);
-        return ResponseEntity.ok(updatedTransformer); // Returns 200 OK with the updated object
+        // The update operation is still performed
+        transformerService.update(transformerNumber, updates);
+
+        // Return a 200 OK status with no response body
+        return ResponseEntity.ok().build();
     }
 
 

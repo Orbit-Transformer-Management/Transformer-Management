@@ -4,6 +4,7 @@ import axios from 'axios';
 import PageLayout from '../components/common/PageLayout';
 import Pagination from '../components/common/Pagination';
 import AddTransformerModal from '../transformers/AddTransformerModal';
+import EditTransformerModal from '../transformers/EditTransformerModal'; // Added import for the new modal
 import { Search, Plus, Star, ChevronLeft, Zap, MapPin, Filter, Eye, Trash2, Activity, TrendingUp, AlertTriangle, Edit, X } from 'lucide-react';
 
 const TransformersListPage = () => {
@@ -14,7 +15,10 @@ const TransformersListPage = () => {
         region: '',
         type: '',
     });
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    // --- STATE CHANGES ---
+    // States are now separate for each modal's visibility
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [transformerToEdit, setTransformerToEdit] = useState<any>(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{
         isOpen: boolean;
@@ -35,7 +39,7 @@ const TransformersListPage = () => {
     useEffect(() => {
         fetchTransformers();
     }, []);
-    
+
     // Show delete confirmation modal
     const showDeleteConfirmation = (transformer: any) => {
         setDeleteConfirmation({ isOpen: true, transformer });
@@ -59,26 +63,29 @@ const TransformersListPage = () => {
         setDeleteConfirmation({ isOpen: false, transformer: null });
     };
 
-    // Handle edit transformer
+    // --- HANDLER CHANGES ---
+
+    // Handle edit transformer: Now opens the EDIT modal
     const handleEdit = (transformer: any) => {
         setTransformerToEdit(transformer);
-        setIsModalOpen(true);
+        setIsEditModalOpen(true);
     };
 
-    // Handle modal close
+    // Handle modal close: Now closes BOTH modals and resets state
     const handleModalClose = () => {
-        setIsModalOpen(false);
+        setIsAddModalOpen(false);
+        setIsEditModalOpen(false);
         setTransformerToEdit(null);
     };
 
-    // Handle successful add/edit
+    // Handle successful add/edit: Calls the updated close handler
     const handleAddEditSuccess = () => {
         fetchTransformers();
         handleModalClose();
     };
 
     // Filtered data based on column filters
-    const filteredData = transformersData.filter((t) => 
+    const filteredData = transformersData.filter((t) =>
         (t.transformerNo?.toLowerCase() ?? '').includes(filters.transformerNo.toLowerCase()) &&
         (t.poleNo?.toLowerCase() ?? '').includes(filters.poleNo.toLowerCase()) &&
         (filters.region === '' || t.region === filters.region) &&
@@ -92,14 +99,27 @@ const TransformersListPage = () => {
 
     return (
         <PageLayout title="Transformers">
-            <AddTransformerModal 
-                isOpen={isModalOpen} 
-                onClose={handleModalClose} 
+            {/* --- MODAL RENDERING CHANGES --- */}
+            {/* Modal for adding a new transformer */}
+            <AddTransformerModal
+                isOpen={isAddModalOpen}
+                onClose={handleModalClose}
                 onAddSuccess={handleAddEditSuccess}
-                {...(transformerToEdit && { transformerToEdit })}
             />
 
-            {/* Delete Confirmation Modal */}
+            {/* Modal for editing an existing transformer */}
+            {/* It only renders when there is a transformer to edit */}
+            {transformerToEdit && (
+                <EditTransformerModal
+                    isOpen={isEditModalOpen}
+                    onClose={handleModalClose}
+                    onEditSuccess={handleAddEditSuccess}
+                    transformerToEdit={transformerToEdit}
+                />
+            )}
+
+
+            {/* Delete Confirmation Modal (no changes here) */}
             {deleteConfirmation.isOpen && (
                 <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
                     <div className="bg-white rounded-3xl shadow-2xl border-2 border-gray-200 p-8 max-w-md w-full mx-4 transform scale-100 animate-in fade-in duration-300">
@@ -117,7 +137,7 @@ const TransformersListPage = () => {
                                 <X size={20} className="text-gray-500" />
                             </button>
                         </div>
-                        
+
                         <div className="mb-8">
                             <p className="text-gray-700 text-lg mb-4">
                                 Are you sure you want to delete transformer{' '}
@@ -129,7 +149,7 @@ const TransformersListPage = () => {
                                 This action cannot be undone. All data associated with this transformer will be permanently removed.
                             </p>
                         </div>
-                        
+
                         <div className="flex space-x-4">
                             <button
                                 onClick={cancelDelete}
@@ -148,22 +168,19 @@ const TransformersListPage = () => {
                     </div>
                 </div>
             )}
-            
-            <div className="flex flex-col h-full space-y-8">
 
-                {/* Enhanced Header */}
+            <div className="flex flex-col h-full space-y-8">
                 <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-3xl border border-amber-200 shadow-xl overflow-hidden">
                     <div className="relative p-8">
-                        {/* Background Pattern */}
                         <div className="absolute inset-0 opacity-10">
                             <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-amber-400 to-orange-400 rounded-full blur-3xl"></div>
                             <div className="absolute -bottom-5 -left-5 w-32 h-32 bg-gradient-to-br from-yellow-400 to-amber-400 rounded-full blur-2xl"></div>
                         </div>
-                        
+
                         <div className="relative z-10 flex justify-between items-center">
                             <div className="flex items-center space-x-6">
-                                <button 
-                                    onClick={() => navigate(-1)} 
+                                <button
+                                    onClick={() => navigate(-1)}
                                     className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
                                 >
                                     <ChevronLeft size={24} className="text-white" />
@@ -173,27 +190,27 @@ const TransformersListPage = () => {
                                         <Zap size={32} className="text-white" />
                                     </div>
                                     <div>
-                                    <h1 className="text-4xl font-bold text-gray-800">
-                                        Transformer Management
-                                    </h1>
-                                    <p className="text-lg mt-2 font-medium text-gray-700">
-                                        Monitor and control electrical infrastructure
-                                    </p>
+                                        <h1 className="text-4xl font-bold text-gray-800">
+                                            Transformer Management
+                                        </h1>
+                                        <p className="text-lg mt-2 font-medium text-gray-700">
+                                            Monitor and control electrical infrastructure
+                                        </p>
                                     </div>
                                 </div>
-                                
-                                <button 
-                                    onClick={() => setIsModalOpen(true)} 
+
+                                {/* --- ADD BUTTON ONCLICK CHANGE --- */}
+                                <button
+                                    onClick={() => setIsAddModalOpen(true)} // This now opens the ADD modal
                                     className="flex items-center bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white px-8 py-4 rounded-2xl hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-lg font-bold shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 ml-8"
                                 >
-                                    <Plus size={24} className="mr-3"/> 
+                                    <Plus size={24} className="mr-3" />
                                     <span>Add Transformer</span>
                                 </button>
                             </div>
-                            
-                            {/* Enhanced Tab Navigation */}
+
                             <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm">
-                                <button 
+                                <button
                                     className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl shadow-lg text-lg font-bold transition-all duration-300 flex items-center space-x-2"
                                 >
                                     <Zap size={18} />
@@ -211,8 +228,9 @@ const TransformersListPage = () => {
                     </div>
                 </div>
 
-                {/* Enhanced Table Container */}
+                {/* The rest of the table code remains the same */}
                 <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
+                    {/* ... Table Header ... */}
                     <div className="bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 px-8 py-6 border-b-2 border-gray-200">
                         <h3 className="text-2xl font-bold text-gray-800 flex items-center">
                             <div className="p-3 bg-amber-100 rounded-xl mr-4">
@@ -256,7 +274,6 @@ const TransformersListPage = () => {
                                     <th className="p-6 text-center text-sm font-black text-gray-800 uppercase tracking-wide">Actions</th>
                                 </tr>
 
-                                {/* Enhanced Filter Row */}
                                 <tr className="bg-white border-b border-gray-200">
                                     <th></th>
                                     <th className="p-4">
@@ -302,12 +319,12 @@ const TransformersListPage = () => {
                                     <th></th>
                                 </tr>
                             </thead>
-
+                            
                             <tbody className="divide-y divide-gray-100">
                                 {filteredData.map((transformer, index) => (
                                     <tr key={index} className="hover:bg-gradient-to-r hover:from-amber-25 hover:to-orange-25 transition-all duration-300 group">
                                         <td className="p-6 text-center">
-                                            <Star size={20} className="text-gray-300 hover:text-yellow-500 cursor-pointer transition-all duration-300 hover:scale-125 transform"/>
+                                            <Star size={20} className="text-gray-300 hover:text-yellow-500 cursor-pointer transition-all duration-300 hover:scale-125 transform" />
                                         </td>
                                         <td className="p-6">
                                             <div className="flex items-center space-x-4">
@@ -331,32 +348,31 @@ const TransformersListPage = () => {
                                             </div>
                                         </td>
                                         <td className="p-6">
-                                            <span className={`inline-flex items-center px-4 py-2 rounded-xl text-sm font-bold border-2 shadow-md ${
-                                                transformer.type === 'Bulk' 
+                                            <span className={`inline-flex items-center px-4 py-2 rounded-xl text-sm font-bold border-2 shadow-md ${transformer.type === 'Bulk'
                                                     ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 border-purple-300'
                                                     : 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-300'
-                                            }`}>
+                                                }`}>
                                                 <span className="mr-2">{transformer.type === 'Bulk' ? '🏭' : '🏘️'}</span>
                                                 {transformer.type}
                                             </span>
                                         </td>
                                         <td className="p-6 text-center">
                                             <div className="flex items-center justify-center space-x-3">
-                                                <button 
+                                                <button
                                                     onClick={() => navigate(`/transformers/${transformer.transformerNumber}/history`)}
                                                     className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
                                                 >
                                                     <Eye size={16} className="mr-2" />
                                                     View
                                                 </button>
-                                                <button 
-                                                    onClick={() => handleEdit(transformer)}
+                                                <button
+                                                    onClick={() => handleEdit(transformer)} // No changes here, this is correct
                                                     className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
                                                 >
                                                     <Edit size={16} className="mr-2" />
                                                     Edit
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => showDeleteConfirmation(transformer)}
                                                     className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
                                                 >
@@ -370,8 +386,7 @@ const TransformersListPage = () => {
                             </tbody>
                         </table>
                     </div>
-
-                    {/* Enhanced Empty State */}
+                    
                     {filteredData.length === 0 && (
                         <div className="text-center py-20">
                             <div className="text-8xl mb-6">⚡</div>
