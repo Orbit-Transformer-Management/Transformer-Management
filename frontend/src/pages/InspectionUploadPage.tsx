@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Header from '../components/common/Header'; // Assuming Header component exists
+import Header from '../components/common/Header'; 
 import { UploadCloud, Image, Sun, Cloud, CloudRain, Upload, X, ChevronLeft, Check } from 'lucide-react';
 import axios from 'axios';
 
@@ -8,7 +8,7 @@ import axios from 'axios';
 interface ImageDetails {
     url: string;
     fileName: string;
-    condition: string;
+    condition?: string;
     date: string;
 }
 
@@ -21,7 +21,7 @@ interface UploadProgress {
 }
 
 const InspectionDetailPage = () => {
-    const { id } = useParams<{ id: string }>();
+    const { id } = useParams<{ id: string }>(); // This is the Transformer ID
     const navigate = useNavigate();
     const thermalInputRef = useRef<HTMLInputElement>(null);
     const baselineInputRef = useRef<HTMLInputElement>(null);
@@ -29,6 +29,7 @@ const InspectionDetailPage = () => {
     // --- State Management ---
     const [isLoading, setIsLoading] = useState(true);
     const [inspectionLocation, setInspectionLocation] = useState('');
+    const [inspectionId, setInspectionId] = useState<string | null>(null);
     const [thermalCondition, setThermalCondition] = useState('Sunny');
     const [baselineCondition, setBaselineCondition] = useState('Sunny');
     
@@ -45,48 +46,52 @@ const InspectionDetailPage = () => {
     // --- Data Fetching on Load ---
     useEffect(() => {
         const fetchAndCheckData = async () => {
-            if (!id) return;
+            if (!id) {
+                setIsLoading(false);
+                return;
+            }
             setIsLoading(true);
 
-            // Fetch main inspection details (like location)
+            // Fetch main inspection details, including the inspection ID
+            let fetchedInspectionId: string | null = null;
             try {
                 const res = await axios.get(`http://localhost:8080/api/v1/inspections/${id}`);
                 setInspectionLocation(res.data.location || 'Unknown Location');
+                fetchedInspectionId = res.data.inspectionId;
+                setInspectionId(fetchedInspectionId);
             } catch (error) {
                 console.error("Could not fetch inspection details:", error);
                 setInspectionLocation('Details not found');
             }
+            
+            if (id && fetchedInspectionId) {
+                // Check for baseline image (uses Transformer ID)
+                try {
+                    await axios.head(`http://localhost:8080/api/v1/transformers/${id}/image`);
+                    setBaselineImage({
+                        url: `http://localhost:8080/api/v1/transformers/${id}/image`,
+                        fileName: `baseline_${id}.jpg`,
+                        condition: 'N/A',
+                        date: 'Existing',
+                    });
+                } catch (error) {
+                    console.log("No existing baseline image found.");
+                    setBaselineImage(null);
+                }
 
-            // --- UPDATED: Check for BOTH baseline and thermal images ---
-            const baselineImageUrl = `http://localhost:8080/api/v1/transformers/${id}/image`;
-            const thermalImageUrl = `http://localhost:8080/api/v1/inspections/${id}/image`;
-
-            // Check for baseline image
-            try {
-                await axios.head(baselineImageUrl);
-                setBaselineImage({
-                    url: baselineImageUrl,
-                    fileName: `baseline_${id}.jpg`,
-                    condition: 'N/A',
-                    date: 'Existing',
-                });
-            } catch (error) {
-                console.log("No existing baseline image found.");
-                setBaselineImage(null);
-            }
-
-            // Check for thermal image
-            try {
-                await axios.head(thermalImageUrl);
-                setThermalImage({
-                    url: thermalImageUrl,
-                    fileName: `thermal_${id}.jpg`,
-                    condition: 'N/A',
-                    date: 'Existing',
-                });
-            } catch (error) {
-                console.log("No existing thermal image found.");
-                setThermalImage(null);
+                // Check for thermal image (uses Inspection ID)
+                try {
+                    await axios.head(`http://localhost:8080/api/v1/inspections/${fetchedInspectionId}/image`);
+                    setThermalImage({
+                        url: `http://localhost:8080/api/v1/inspections/${fetchedInspectionId}/image`,
+                        fileName: `thermal_${fetchedInspectionId}.jpg`,
+                        condition: 'N/A',
+                        date: 'Existing',
+                    });
+                } catch (error) {
+                    console.log("No existing thermal image found.");
+                    setThermalImage(null);
+                }
             }
 
             setIsLoading(false);
@@ -101,17 +106,22 @@ const InspectionDetailPage = () => {
         { name: 'Rainy', icon: <CloudRain size={16} /> },
     ];
 
-    // --- UPDATED Image Upload Logic ---
+    // --- Image Upload Logic ---
     const uploadImage = async (file: File, type: 'thermal' | 'baseline', condition: string) => {
+        if (!inspectionId) {
+            console.error('Cannot upload image: Inspection ID is not available.');
+            return;
+        }
+
         setUploadProgress({ isVisible: true, progress: 0, fileName: file.name, type });
 
         const formData = new FormData();
         formData.append('image', file);
-        
-        // Determine the correct API endpoint based on the image type
+        formData.append('condition', condition);
+
         const uploadUrl = type === 'thermal'
-            ? `http://localhost:8080/api/v1/inspections/${id}/image`
-            : `http://localhost:8080/api/v1/transformers/${id}/image`;
+            ? `http://localhost:8080/api/v1/inspections/${inspectionId}/image` // Correct endpoint using inspectionId
+            : `http://localhost:8080/api/v1/transformers/${id}/image`; // Endpoint using Transformer ID
 
         try {
             await axios.post(uploadUrl, formData, {
@@ -263,7 +273,7 @@ const InspectionDetailPage = () => {
                                     <p><strong>Date:</strong> {baselineImage.date}</p>
                                 </div>
                             </div>
-                             <div className="mt-4 text-center">
+                            <div className="mt-4 text-center">
                                 <button onClick={() => setBaselineImage(null)} className="text-red-600 hover:text-red-800 font-semibold">
                                     Replace Baseline Image
                                 </button>
@@ -271,7 +281,7 @@ const InspectionDetailPage = () => {
                         </div>
                     ) : (
                         <div className="bg-white p-8 rounded-xl shadow-lg">
-                             <h3 className="text-xl font-bold mb-6 flex items-center text-gray-800">
+                            <h3 className="text-xl font-bold mb-6 flex items-center text-gray-800">
                                 <Image className="mr-3 text-green-600" size={24} /> Upload Baseline Image
                             </h3>
                             <div className="border-2 border-dashed border-green-300 rounded-xl p-10 text-center bg-green-50 hover:bg-green-100 transition-colors cursor-pointer" onDrop={(e) => handleDrop(e, 'baseline')} onDragOver={(e) => e.preventDefault()} onClick={() => baselineInputRef.current?.click()}>
