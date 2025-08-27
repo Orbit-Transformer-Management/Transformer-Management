@@ -36,17 +36,19 @@ public class InspectionService {
 
     public Inspection save(InspectionRequest req){
         Inspection inspection = new Inspection();
-        Transformer transformer = transformerService.get(req.transformerNumber());
-        inspection.setInspectionNumber(req.inspectionNumber());
+        Transformer transformer = transformerService.get(req.getTransformerNumber());
+        inspection.setInspectionNumber(req.getInspectionNumber());
         inspection.setTransformer(transformer); // FK via relation
-        inspection.setInspectionDate(req.inspectionDate());
-        inspection.setInspectionTime(req.inspectionTime());
-        inspection.setBranch(req.branch());
-        inspection.setMaintenanceDate(req.maintenanceDate());
-        inspection.setMaintenanceTime(req.maintenanceTime());
-        inspection.setStatus(req.status());
+        inspection.setInspectionDate(req.getInspectionDate());
+        inspection.setInspectionTime(req.getInspectionTime());
+        inspection.setBranch(req.getBranch());
+        inspection.setMaintenanceDate(req.getMaintenanceDate());
+        inspection.setMaintenanceTime(req.getMaintenanceTime());
+        inspection.setStatus(req.getStatus());
         return inspectionRepository.save(inspection);
     }
+
+
 
     public List<InspectionResponse> get() {
         List<InspectionResponse> inspections = inspectionRepository
@@ -61,6 +63,38 @@ public class InspectionService {
         return inspectionRepository.findById(inspectionNumber)
                 .map(InspectionResponse::new) // entity -> DTO
                 .orElse(null);
+    }
+
+    public InspectionResponse update(String inspectionNumber, InspectionRequest inspectionUpdate) {
+        // 1. Find the existing inspection or throw an exception if it's not found.
+        Inspection existingInspection = inspectionRepository.findById(inspectionNumber)
+                .orElseThrow(() -> new RuntimeException("Inspection not found with id: " + inspectionNumber));
+
+        // 2. Conditionally update fields only if new values are provided in the request.
+        if (inspectionUpdate.getInspectionDate() != null) {
+            existingInspection.setInspectionDate(inspectionUpdate.getInspectionDate());
+        }
+        if (inspectionUpdate.getInspectionTime() != null) {
+            existingInspection.setInspectionTime(inspectionUpdate.getInspectionTime());
+        }
+        if (inspectionUpdate.getBranch() != null) {
+            existingInspection.setBranch(inspectionUpdate.getBranch());
+        }
+        if (inspectionUpdate.getMaintenanceDate() != null) {
+            existingInspection.setMaintenanceDate(inspectionUpdate.getMaintenanceDate());
+        }
+        if (inspectionUpdate.getMaintenanceTime() != null) {
+            existingInspection.setMaintenanceTime(inspectionUpdate.getMaintenanceTime());
+        }
+        if (inspectionUpdate.getStatus() != null) {
+            existingInspection.setStatus(inspectionUpdate.getStatus());
+        }
+
+        //Cant change the transformer related to inspection. Do we need it change it
+        // 3. Save the updated inspection to the database and return it.
+       Inspection updatedInspection = inspectionRepository.save(existingInspection);
+
+        return new InspectionResponse(updatedInspection);
     }
 
     public boolean delete(String transformerNumber){
