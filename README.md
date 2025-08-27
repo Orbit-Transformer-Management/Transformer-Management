@@ -9,12 +9,12 @@ Currently, inspections are manual, time-consuming, and error-prone. This project
 
 We have completed **Phase 1 – Transformer and Baseline Image Management**, which includes:
 
-### ✅ FR1.1 – Admin Interface for Transformer Management
+### Admin Interface for Transformer Management
 - Add new transformer records  
 - View and edit existing transformer records  
 - Delete transformer records if required  
 
-### ✅ FR1.2 – Thermal Image Upload and Tagging
+### Thermal Image Upload and Tagging
 - Upload **thermal images** linked to specific transformers  
 - Support for two image types:  
   - **Baseline**: Reference images for comparisons  
@@ -24,7 +24,7 @@ We have completed **Phase 1 – Transformer and Baseline Image Management**, whi
   - Image type (Baseline / Maintenance)  
   - Uploader (admin ID or name)  
 
-### ✅ FR1.3 – Categorization by Environmental Conditions
+### Categorization by Environmental Conditions
 - While uploading baseline images, users must select environmental conditions:  
   - Sunny  
   - Cloudy  
