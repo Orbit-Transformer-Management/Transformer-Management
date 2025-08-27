@@ -19,7 +19,7 @@ function App() {
           {/* Transformer History/Details Page */}
           <Route path="/transformers/:id/history" element={<TransformerHistoryPage />} />
           {/* Transformer Upload Images Page */}
-          <Route path="/transformers/:id/upload" element={<InspectionUploadPage />} />
+          <Route path="/inspections/:inspectionNo/upload" element={<InspectionUploadPage />} />
           <Route path="/settings" element={<div>Settings Page</div>} />
         </Route>
       </Routes>

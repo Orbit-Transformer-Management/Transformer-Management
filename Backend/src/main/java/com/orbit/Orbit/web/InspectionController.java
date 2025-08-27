@@ -3,6 +3,7 @@ package com.orbit.Orbit.web;
 import com.orbit.Orbit.dto.InspectionRequest;
 import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -11,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Collection;
+import java.util.List;
 
 @CrossOrigin(origins = "http://localhost:5173") // To fix the Cross Origin error
 @RestController
@@ -26,19 +28,41 @@ public class InspectionController {
 
 
     @GetMapping("/api/v1/inspections")
-    public Collection<InspectionResponse> get(){
-        return inspectionService.get();
+    public ResponseEntity<List<InspectionResponse>> get() {
+        List<InspectionResponse> inspections = inspectionService.get();
+
+        if (inspections.isEmpty()) {
+            return ResponseEntity.noContent().build(); // 204 No Content
+        }
+
+        return ResponseEntity.ok(inspections); // 200 OK + list
     }
 
+
     @GetMapping("/api/v1/inspections/{inspectionNumber}")
-    public Inspection get(@PathVariable String inspectionNumber){
-        return inspectionService.get(inspectionNumber);
+    public ResponseEntity<InspectionResponse> get(@PathVariable String inspectionNumber) {
+        InspectionResponse response = inspectionService.get(inspectionNumber);
+
+        if (response == null) {
+            return ResponseEntity.notFound().build(); // 404
+        }
+
+        return ResponseEntity.ok(response); // 200 + body
     }
 
     @GetMapping("/api/v1/transformers/{transformerNumber}/inspections")
-    public Collection<Inspection> getInspectionofTransformer(@PathVariable String transformerNumber){
-        return inspectionService.getInspectionofTransformer(transformerNumber);
+    public ResponseEntity<List<InspectionResponse>> getInspectionOfTransformer(
+            @PathVariable String transformerNumber) {
+
+        List<InspectionResponse> inspections = inspectionService.getInspectionOfTransformer(transformerNumber);
+
+        if (inspections.isEmpty()) {
+            return ResponseEntity.noContent().build(); //
+        }
+
+        return ResponseEntity.ok(inspections);
     }
+    //Mihiran Fixed the responses upto here.
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/image")
     public ResponseEntity<Resource> getimage(@PathVariable String inspectionNumber){
@@ -81,6 +105,16 @@ public class InspectionController {
                 .body("done");
     }
 
+    @PatchMapping ("/api/v1/inspections/{inspectionNumber}")
+    public ResponseEntity<InspectionResponse> partialUpdate(
+            @PathVariable String inspectionNumber,
+            @RequestBody InspectionRequest inspectionUpdate) {
+
+        InspectionResponse updatedInspectionResponse = inspectionService.update(inspectionNumber,inspectionUpdate);
+        return ResponseEntity
+                .ok(updatedInspectionResponse); // Returns 200 OK with the updated object
+    }
+
 //    @PostMapping("/api/v1/inspections/{inspectionNumber}/image")
 //    public String uploadImage(
 //            @PathVariable String inspectionNumber,
@@ -101,8 +135,8 @@ public class InspectionController {
 
 
     @DeleteMapping("/api/v1/inspections/{inspectionNumber}")
-    public void delete(@PathVariable String InspectionNumber){
-        if(!inspectionService.delete(InspectionNumber)){
+    public void delete(@PathVariable String inspectionNumber){
+        if(!inspectionService.delete(inspectionNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 

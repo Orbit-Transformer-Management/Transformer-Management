@@ -53,6 +53,14 @@ public class TransformerController {
                 .body(image);
     }
 
+    @PatchMapping ("/api/v1/transformers/{transformerNumber}")
+    public ResponseEntity<Transformer> partialUpdate(
+            @PathVariable String transformerNumber,
+            @RequestBody Transformer updates) {
+
+        Transformer updatedTransformer = transformerService.update(transformerNumber, updates);
+        return ResponseEntity.ok(updatedTransformer); // Returns 200 OK with the updated object
+    }
 
 
     @PostMapping("/api/v1/transformers")
@@ -62,6 +70,8 @@ public class TransformerController {
                 .status(HttpStatus.CREATED)  // 201 Created
                 .body(transformer);
     }
+
+
 
     @PostMapping("/api/v1/transformers/{transformerNumber}/image")
     public ResponseEntity<Void> uploadImage(

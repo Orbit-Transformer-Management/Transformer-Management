@@ -403,29 +403,42 @@ const InspectionsPage: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="p-6 text-center">
-                                            <div className="flex items-center justify-center space-x-3">
-                                                <button 
-                                                    onClick={() => navigate(`/transformers/${insp.transformerNo}/upload`)}
-                                                    className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                >
-                                                    <Eye size={16} className="mr-2" />
-                                                    View
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleEdit(insp)}
-                                                    className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                >
-                                                    <Edit size={16} className="mr-2" />
-                                                    Edit
-                                                </button>
-                                                <button 
-                                                    onClick={() => showDeleteConfirmation(insp)}
-                                                    className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                >
-                                                    <Trash2 size={16} className="mr-2" />
-                                                    Delete
-                                                </button>
-                                            </div>
+                                            <button 
+                                                onClick={() => navigate(`/inspections/${insp.inspectionNo}/upload`)}
+                                                className="inline-flex items-center bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white px-6 py-3 rounded-xl hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
+                                            >
+                                                <Eye size={16} className="mr-2" />
+                                                View Details
+                                            </button>
+                                        </td>
+                                        <td className="p-6 text-center relative">
+                                            <button
+                                                onClick={() =>
+                                                    setOpenDropdown(
+                                                        openDropdown === insp.inspectionNo
+                                                            ? null
+                                                            : insp.inspectionNo
+                                                    )
+                                                }
+                                                className="p-3 rounded-xl hover:bg-gray-100 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-110"
+                                            >
+                                                <MoreVertical size={20} className="text-gray-600" />
+                                            </button>
+
+                                            {openDropdown === insp.inspectionNo && (
+                                                <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-gray-200 rounded-2xl shadow-2xl z-20 overflow-hidden">
+                                                    <button
+                                                        onClick={() => {
+                                                            handleDelete(insp.inspectionNo);
+                                                            setOpenDropdown(null);
+                                                        }}
+                                                        className="flex items-center w-full px-6 py-4 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-bold transition-all duration-200 border-l-4 border-transparent hover:border-red-500"
+                                                    >
+                                                        <Trash2 size={18} className="mr-3" />
+                                                        Delete Inspection
+                                                    </button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
