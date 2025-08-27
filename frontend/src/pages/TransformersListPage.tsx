@@ -4,7 +4,7 @@ import axios from 'axios';
 import PageLayout from '../components/common/PageLayout';
 import Pagination from '../components/common/Pagination';
 import AddTransformerModal from '../transformers/AddTransformerModal';
-import { Search, Plus, Star, MoreVertical, ChevronLeft, Zap, MapPin, Filter, Eye, Trash2, Activity, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Star, ChevronLeft, Zap, MapPin, Filter, Eye, Trash2, Activity, TrendingUp, AlertTriangle, Edit, X } from 'lucide-react';
 
 const TransformersListPage = () => {
     const [transformersData, setTransformersData] = useState<any[]>([]);
@@ -15,9 +15,12 @@ const TransformersListPage = () => {
         type: '',
     });
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [transformerToEdit, setTransformerToEdit] = useState<any>(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{
+        isOpen: boolean;
+        transformer: any;
+    }>({ isOpen: false, transformer: null });
     const navigate = useNavigate();
-    const [page, setPage] = useState(1);
-    const totalPages = 50;
 
     // Fetch transformers from API
     const fetchTransformers = async () => {
@@ -33,20 +36,46 @@ const TransformersListPage = () => {
         fetchTransformers();
     }, []);
     
-    const handleDelete = async (transformerNumber: string) => {
-        if (!window.confirm("Are you sure you want to delete this transformer?")) return;
+    // Show delete confirmation modal
+    const showDeleteConfirmation = (transformer: any) => {
+        setDeleteConfirmation({ isOpen: true, transformer });
+    };
+
+    // Handle delete with confirmation
+    const handleDelete = async () => {
+        if (!deleteConfirmation.transformer) return;
 
         try {
-            await axios.delete(`http://localhost:8080/api/v1/transformers/${transformerNumber}`);
-            alert("Transformer deleted successfully!");
+            await axios.delete(`http://localhost:8080/api/v1/transformers/${deleteConfirmation.transformer.transformerNumber}`);
             fetchTransformers(); // Refresh list after deletion
+            setDeleteConfirmation({ isOpen: false, transformer: null });
         } catch (err) {
             console.error('Error deleting transformer:', err);
-            alert("Failed to delete transformer");
         }
     };
 
-    const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+    // Cancel delete
+    const cancelDelete = () => {
+        setDeleteConfirmation({ isOpen: false, transformer: null });
+    };
+
+    // Handle edit transformer
+    const handleEdit = (transformer: any) => {
+        setTransformerToEdit(transformer);
+        setIsModalOpen(true);
+    };
+
+    // Handle modal close
+    const handleModalClose = () => {
+        setIsModalOpen(false);
+        setTransformerToEdit(null);
+    };
+
+    // Handle successful add/edit
+    const handleAddEditSuccess = () => {
+        fetchTransformers();
+        handleModalClose();
+    };
 
     // Filtered data based on column filters
     const filteredData = transformersData.filter((t) => 
@@ -63,7 +92,62 @@ const TransformersListPage = () => {
 
     return (
         <PageLayout title="Transformers">
-            <AddTransformerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAddSuccess={fetchTransformers} />
+            <AddTransformerModal 
+                isOpen={isModalOpen} 
+                onClose={handleModalClose} 
+                onAddSuccess={handleAddEditSuccess}
+                {...(transformerToEdit && { transformerToEdit })}
+            />
+
+            {/* Delete Confirmation Modal */}
+            {deleteConfirmation.isOpen && (
+                <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50">
+                    <div className="bg-white rounded-3xl shadow-2xl border-2 border-gray-200 p-8 max-w-md w-full mx-4 transform scale-100 animate-in fade-in duration-300">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-3 bg-red-100 rounded-xl">
+                                    <AlertTriangle size={24} className="text-red-600" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-800">Confirm Delete</h3>
+                            </div>
+                            <button
+                                onClick={cancelDelete}
+                                className="p-2 hover:bg-gray-100 rounded-xl transition-all duration-200"
+                            >
+                                <X size={20} className="text-gray-500" />
+                            </button>
+                        </div>
+                        
+                        <div className="mb-8">
+                            <p className="text-gray-700 text-lg mb-4">
+                                Are you sure you want to delete transformer{' '}
+                                <span className="font-bold text-red-600">
+                                    {deleteConfirmation.transformer?.transformerNumber}
+                                </span>?
+                            </p>
+                            <p className="text-gray-600">
+                                This action cannot be undone. All data associated with this transformer will be permanently removed.
+                            </p>
+                        </div>
+                        
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={cancelDelete}
+                                className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-semibold transition-all duration-300"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 font-semibold transition-all duration-300 flex items-center justify-center space-x-2"
+                            >
+                                <Trash2 size={18} />
+                                <span>Delete</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             <div className="flex flex-col h-full space-y-8">
 
@@ -82,7 +166,7 @@ const TransformersListPage = () => {
                                     onClick={() => navigate(-1)} 
                                     className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
                                 >
-                                    <ChevronLeft size={24} className="text-gray-700" />
+                                    <ChevronLeft size={24} className="text-white" />
                                 </button>
                                 <div className="flex items-center space-x-4">
                                     <div className="p-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg">
@@ -127,137 +211,6 @@ const TransformersListPage = () => {
                     </div>
                 </div>
 
-                {/* Enhanced Statistics Dashboard
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100 rounded-2xl p-6 border-2 border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-blue-700 text-sm font-bold uppercase tracking-wide">Total Fleet</p>
-                                <p className="text-4xl font-black text-blue-900 mt-2">{transformersData.length}</p>
-                                <p className="text-blue-600 text-xs mt-1 font-medium">Active Transformers</p>
-                            </div>
-                            <div className="p-4 bg-blue-200 rounded-2xl shadow-inner">
-                                <Zap size={32} className="text-blue-800" />
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-emerald-50 via-green-100 to-teal-100 rounded-2xl p-6 border-2 border-green-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-green-700 text-sm font-bold uppercase tracking-wide">Operational</p>
-                                <p className="text-4xl font-black text-green-900 mt-2">{Math.floor(transformersData.length * 0.85)}</p>
-                                <p className="text-green-600 text-xs mt-1 font-medium flex items-center">
-                                    <TrendingUp size={12} className="mr-1" />
-                                    Running Smoothly
-                                </p>
-                            </div>
-                            <div className="p-4 bg-green-200 rounded-2xl shadow-inner">
-                                <div className="w-8 h-8 bg-green-600 rounded-full animate-pulse shadow-lg"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-amber-50 via-yellow-100 to-orange-100 rounded-2xl p-6 border-2 border-amber-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-amber-700 text-sm font-bold uppercase tracking-wide">Maintenance</p>
-                                <p className="text-4xl font-black text-amber-900 mt-2">{Math.floor(transformersData.length * 0.15)}</p>
-                                <p className="text-amber-600 text-xs mt-1 font-medium flex items-center">
-                                    <AlertTriangle size={12} className="mr-1" />
-                                    Needs Attention
-                                </p>
-                            </div>
-                            <div className="p-4 bg-amber-200 rounded-2xl shadow-inner">
-                                <AlertTriangle size={32} className="text-amber-800 animate-pulse" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-purple-50 via-indigo-100 to-blue-100 rounded-2xl p-6 border-2 border-purple-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-purple-700 text-sm font-bold uppercase tracking-wide">Efficiency</p>
-                                <p className="text-4xl font-black text-purple-900 mt-2">94%</p>
-                                <p className="text-purple-600 text-xs mt-1 font-medium">System Performance</p>
-                            </div>
-                            <div className="p-4 bg-purple-200 rounded-2xl shadow-inner">
-                                <Activity size={32} className="text-purple-800" />
-                            </div>
-                        </div>
-                    </div>
-                </div> */}
-
-                {/* Enhanced Filter Section
-                <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
-                    <div className="bg-gradient-to-r from-gray-50 to-slate-100 px-8 py-6 border-b border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-2xl font-bold text-gray-800 flex items-center">
-                                <div className="p-3 bg-blue-100 rounded-xl mr-4">
-                                    <Filter size={24} className="text-blue-600" />
-                                </div>
-                                Advanced Search & Filtering
-                            </h3>
-                            <button 
-                                onClick={resetFilters}
-                                className="px-6 py-3 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300 rounded-xl text-sm font-semibold transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg border border-gray-300"
-                            >
-                                Reset All Filters
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div className="p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                            <div className="md:col-span-6 space-y-3">
-                                <label className="block text-sm font-bold text-gray-700">🔍 Search Transformers</label>
-                                <div className="relative">
-                                    <select className="absolute left-0 top-0 h-full pl-5 pr-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-r-2 border-blue-200 text-sm text-blue-700 z-10 rounded-l-xl font-semibold">
-                                        <option>By Transformer No</option>
-                                    </select>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Enter transformer ID, location, or specifications..." 
-                                        className="w-full p-4 pl-48 pr-16 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-200 focus:border-blue-500 bg-gradient-to-r from-gray-50 to-white hover:shadow-md transition-all duration-300 text-gray-800 font-medium"
-                                    />
-                                    <button className="absolute right-0 top-0 h-full px-6 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-r-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-300 shadow-lg hover:shadow-xl">
-                                        <Search size={20}/>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div className="md:col-span-3 space-y-3">
-                                <label className="block text-sm font-bold text-gray-700">🌍 Regional Zone</label>
-                                <div className="relative">
-                                    <select 
-                                        value={filters.region}
-                                        onChange={(e) => setFilters({ ...filters, region: e.target.value })}
-                                        className="w-full p-4 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white hover:shadow-md text-gray-800 font-medium focus:ring-4 focus:ring-blue-200 transition-all duration-300 appearance-none"
-                                    >
-                                        <option value="">All Regions</option>
-                                        <option value="Nugegoda">🏙️ Nugegoda</option>
-                                        <option value="Maharagama">🌆 Maharagama</option>
-                                    </select>
-                                    <MapPin size={18} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                                </div>
-                            </div>
-                            
-                            <div className="md:col-span-3 space-y-3">
-                                <label className="block text-sm font-bold text-gray-700">⚡ Transformer Type</label>
-                                <select 
-                                    value={filters.type}
-                                    onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-                                    className="w-full p-4 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white hover:shadow-md text-gray-800 font-medium focus:ring-4 focus:ring-blue-200 transition-all duration-300"
-                                >
-                                    <option value="">All Types</option>
-                                    <option value="Bulk">🏭 Bulk Transformer</option>
-                                    <option value="Distribution">🏘️ Distribution Unit</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div> */}
-
                 {/* Enhanced Table Container */}
                 <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
                     <div className="bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 px-8 py-6 border-b-2 border-gray-200">
@@ -301,7 +254,6 @@ const TransformersListPage = () => {
                                         </div>
                                     </th>
                                     <th className="p-6 text-center text-sm font-black text-gray-800 uppercase tracking-wide">Actions</th>
-                                    <th className="p-6 w-12 text-center"></th>
                                 </tr>
 
                                 {/* Enhanced Filter Row */}
@@ -347,7 +299,7 @@ const TransformersListPage = () => {
                                             <option value="Distribution">Distribution</option>
                                         </select>
                                     </th>
-                                    <th colSpan={2}></th>
+                                    <th></th>
                                 </tr>
                             </thead>
 
@@ -364,7 +316,6 @@ const TransformersListPage = () => {
                                                 </div>
                                                 <div>
                                                     <span className="text-lg font-black text-gray-800 group-hover:text-amber-600 transition-colors">{transformer.transformerNumber}</span>
-                                                    
                                                 </div>
                                             </div>
                                         </td>
@@ -390,42 +341,29 @@ const TransformersListPage = () => {
                                             </span>
                                         </td>
                                         <td className="p-6 text-center">
-                                            <button 
-                                                onClick={() => navigate(`/transformers/${transformer.transformerNumber}/history`)}
-                                                className="inline-flex items-center bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white px-6 py-3 rounded-xl hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1"
-                                            >
-                                                <Eye size={16} className="mr-2" />
-                                                View Details
-                                            </button>
-                                        </td>
-                                        <td className="p-6 text-center relative">
-                                            <button
-                                                onClick={() =>
-                                                    setOpenDropdown(
-                                                        openDropdown === transformer.transformerNumber
-                                                            ? null
-                                                            : transformer.transformerNumber
-                                                    )
-                                                }
-                                                className="p-3 rounded-xl hover:bg-gray-100 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-110"
-                                            >
-                                                <MoreVertical size={20} className="text-gray-600" />
-                                            </button>
-
-                                            {openDropdown === transformer.transformerNumber && (
-                                                <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-gray-200 rounded-2xl shadow-2xl z-20 overflow-hidden">
-                                                    <button
-                                                        onClick={() => {
-                                                            handleDelete(transformer.transformerNumber);
-                                                            setOpenDropdown(null);
-                                                        }}
-                                                        className="flex items-center w-full px-6 py-4 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 font-bold transition-all duration-200 border-l-4 border-transparent hover:border-red-500"
-                                                    >
-                                                        <Trash2 size={18} className="mr-3" />
-                                                        Delete Transformer
-                                                    </button>
-                                                </div>
-                                            )}
+                                            <div className="flex items-center justify-center space-x-3">
+                                                <button 
+                                                    onClick={() => navigate(`/transformers/${transformer.transformerNumber}/history`)}
+                                                    className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                                >
+                                                    <Eye size={16} className="mr-2" />
+                                                    View
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleEdit(transformer)}
+                                                    className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                                >
+                                                    <Edit size={16} className="mr-2" />
+                                                    Edit
+                                                </button>
+                                                <button 
+                                                    onClick={() => showDeleteConfirmation(transformer)}
+                                                    className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                                >
+                                                    <Trash2 size={16} className="mr-2" />
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -441,11 +379,6 @@ const TransformersListPage = () => {
                             <p className="text-gray-500 text-lg">Try adjusting your search criteria or add a new transformer to get started.</p>
                         </div>
                     )}
-                </div>
-                                {/* Enhanced Pagination Card */}
-                <div className="p-10">
-                <h1 className="text-xl font-bold mb-4">Current Page: {page}</h1>
-                <Pagination page={page} totalPages={totalPages} onChange={setPage} />
                 </div>
             </div>
         </PageLayout>
