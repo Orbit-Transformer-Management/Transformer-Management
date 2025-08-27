@@ -3,6 +3,7 @@ package com.orbit.Orbit.web;
 import com.orbit.Orbit.dto.InspectionRequest;
 import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -104,6 +105,16 @@ public class InspectionController {
                 .body("done");
     }
 
+    @PatchMapping ("/api/v1/inspections/{inspectionNumber}")
+    public ResponseEntity<InspectionResponse> partialUpdate(
+            @PathVariable String inspectionNumber,
+            @RequestBody InspectionRequest inspectionUpdate) {
+
+        InspectionResponse updatedInspectionResponse = inspectionService.update(inspectionNumber,inspectionUpdate);
+        return ResponseEntity
+                .ok(updatedInspectionResponse); // Returns 200 OK with the updated object
+    }
+
 //    @PostMapping("/api/v1/inspections/{inspectionNumber}/image")
 //    public String uploadImage(
 //            @PathVariable String inspectionNumber,
@@ -124,8 +135,8 @@ public class InspectionController {
 
 
     @DeleteMapping("/api/v1/inspections/{inspectionNumber}")
-    public void delete(@PathVariable String InspectionNumber){
-        if(!inspectionService.delete(InspectionNumber)){
+    public void delete(@PathVariable String inspectionNumber){
+        if(!inspectionService.delete(inspectionNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 

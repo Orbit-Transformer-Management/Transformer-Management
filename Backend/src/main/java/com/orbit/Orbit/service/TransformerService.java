@@ -29,6 +29,35 @@ public class TransformerService {
         return transformerRepository.save(transformer);
     }
 
+    public Transformer update(String transformerNumber, Transformer updates) {
+        // 1. Find the existing transformer in the database or throw an exception.
+        Transformer existingTransformer = transformerRepository.findById(transformerNumber)
+                .orElseThrow(() -> new RuntimeException("Transformer not found with id: " + transformerNumber));
+
+        // 2. Conditionally update each field if a new value is provided.
+        if (updates.getPoleNumber() != null) {
+            existingTransformer.setPoleNumber(updates.getPoleNumber());
+        }
+        if (updates.getRegion() != null) {
+            existingTransformer.setRegion(updates.getRegion());
+        }
+        if (updates.getType() != null) {
+            existingTransformer.setType(updates.getType());
+        }
+        if (updates.getLocationDetails() != null) {
+            existingTransformer.setLocationDetails(updates.getLocationDetails());
+        }
+        if (updates.getContent_type() != null) {
+            existingTransformer.setContent_type(updates.getContent_type());
+        }
+        if (updates.getBase_image_url() != null) {
+            existingTransformer.setBase_image_url(updates.getBase_image_url());
+        }
+
+        // 3. Save the updated entity to the database and return it.
+        return transformerRepository.save(existingTransformer);
+    }
+
     public List<Transformer> get() {
         return transformerRepository.findAll();
     }
