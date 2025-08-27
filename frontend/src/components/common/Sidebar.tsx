@@ -59,19 +59,6 @@ const Sidebar = () => {
         {/* User Profile */}
         {!isCollapsed && (
           <div className="mt-5 p-3 bg-gray-100 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 bg-gray-400 rounded-full flex items-center justify-center shadow-sm">
-                <User size={16} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">John Doe</p>
-                <p className="text-xs text-gray-500 truncate">john@example.com</p>
-              </div>
-              <div className="relative">
-                <Bell size={16} className="text-gray-500" />
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              </div>
-            </div>
           </div>
         )}
       </div>
