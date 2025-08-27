@@ -16,6 +16,8 @@ const TransformersListPage = () => {
     });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const navigate = useNavigate();
+    const [page, setPage] = useState(1);
+    const totalPages = 50;
 
     // Fetch transformers from API
     const fetchTransformers = async () => {
@@ -125,7 +127,7 @@ const TransformersListPage = () => {
                     </div>
                 </div>
 
-                {/* Enhanced Statistics Dashboard */}
+                {/* Enhanced Statistics Dashboard
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100 rounded-2xl p-6 border-2 border-blue-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
                         <div className="flex items-center justify-between">
@@ -184,9 +186,9 @@ const TransformersListPage = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
-                {/* Enhanced Filter Section */}
+                {/* Enhanced Filter Section
                 <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
                     <div className="bg-gradient-to-r from-gray-50 to-slate-100 px-8 py-6 border-b border-gray-200">
                         <div className="flex items-center justify-between">
@@ -254,7 +256,7 @@ const TransformersListPage = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 {/* Enhanced Table Container */}
                 <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
@@ -439,6 +441,11 @@ const TransformersListPage = () => {
                             <p className="text-gray-500 text-lg">Try adjusting your search criteria or add a new transformer to get started.</p>
                         </div>
                     )}
+                </div>
+                                {/* Enhanced Pagination Card */}
+                <div className="p-10">
+                <h1 className="text-xl font-bold mb-4">Current Page: {page}</h1>
+                <Pagination page={page} totalPages={totalPages} onChange={setPage} />
                 </div>
             </div>
         </PageLayout>
