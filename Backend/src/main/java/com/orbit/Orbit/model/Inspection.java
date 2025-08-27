@@ -1,11 +1,16 @@
 package com.orbit.Orbit.model;
 
+import jakarta.persistence.*;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+@Entity
+@Table(name = "inspection")
 public class Inspection {
+    @Id
     private String inspectionNumber;
-    private String transformerNumber;
+    //private String transformerNumber;
     private String inspectionDate;
     private String inspectionTime;
     private String branch;
@@ -14,15 +19,17 @@ public class Inspection {
     private String status;
     private String inspection_image_url;
 
-
+    @ManyToOne
+    @JoinColumn(name = "transformer_number", referencedColumnName = "transformerNumber")
+    private Transformer transformer;
 
     public Inspection() {
     }
 
 
-    public Inspection(String inspectionNumber, String transformerNumber, String inspectionDate, String inspectionTime, String branch, String maintenanceDate, String maintenanceTime, String status) {
+    public Inspection(Transformer transformer, String inspectionNumber, String inspectionDate, String inspectionTime, String branch, String maintenanceDate, String maintenanceTime, String status) {
         this.inspectionNumber = inspectionNumber;
-        this.transformerNumber = transformerNumber;
+        this.transformer = transformer;
         this.inspectionDate = inspectionDate;
         this.inspectionTime = inspectionTime;
         this.branch = branch;
@@ -39,12 +46,12 @@ public class Inspection {
         this.inspectionNumber = inspectionNumber;
     }
 
-    public String getTransformerNumber() {
-        return transformerNumber;
+    public Transformer getTransformer() {
+        return transformer;
     }
 
-    public void setTransformerNumber(String transformerNumber) {
-        this.transformerNumber = transformerNumber;
+    public void setTransformer(Transformer transformer) {
+        this.transformer = transformer;
     }
 
     public String getInspectionDate() {

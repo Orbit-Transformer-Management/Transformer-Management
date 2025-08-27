@@ -1,6 +1,13 @@
 package com.orbit.Orbit.model;
+import jakarta.persistence.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "transformer")
 public class Transformer {
+    @Id
     private String transformerNumber;
     private String poleNumber;
     private String region;
@@ -8,6 +15,10 @@ public class Transformer {
     private String locationDetails;
     private String content_type;
     private String base_image_url;
+
+    // One transformer has many inspections
+    @OneToMany(mappedBy = "transformer", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Inspection> inspections = new ArrayList<>();
 
     public Transformer(){
 
