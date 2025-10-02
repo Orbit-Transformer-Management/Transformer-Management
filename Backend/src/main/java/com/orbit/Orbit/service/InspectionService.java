@@ -36,9 +36,12 @@ public class InspectionService {
 
     private final TransformerService transformerService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService) {
+    private final RoboflowService roboflowService;
+
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService) {
         this.inspectionRepository = inspectionRepository;
         this.transformerService = transformerService;
+        this.roboflowService = roboflowService;
     }
 
     public Inspection save(InspectionRequest req){
@@ -104,26 +107,9 @@ public class InspectionService {
         return new InspectionResponse(updatedInspection);
     }
 
-    public RoboflowResponse[] analyzeInspectionImage(RoboflowRequest request) {
-        // Build headers
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        // Add API key to request
-        String body = String.format(
-                "{ \"api_key\": \"%s\", \"inputs\": { \"image\": { \"type\": \"%s\", \"value\": \"%s\" } } }",
-                roboflowApiKey,
-                request.getInputs().getImage().getType(),
-                request.getInputs().getImage().getValue()
-        );
-
-        HttpEntity<String> entity = new HttpEntity<>(body, headers);
-
-        // Call Roboflow API
-        ResponseEntity<RoboflowResponse[]> response =
-                restTemplate.exchange(roboflowApiUrl, HttpMethod.POST, entity, RoboflowResponse[].class);
-
-        return response.getBody();
+    public RoboflowResponse analyzeInspectionImage(String inspectionNumber) {
+        RoboflowResponse prediction = roboflowService.analyzeInspectionImage(inspectionNumber);
+        return prediction;
     }
 
 
