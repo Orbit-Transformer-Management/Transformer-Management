@@ -20,14 +20,13 @@ import org.springframework.web.client.RestTemplate;
 
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class InspectionService {
@@ -108,7 +107,15 @@ public class InspectionService {
     }
 
     public RoboflowResponse analyzeInspectionImage(String inspectionNumber) {
-        RoboflowResponse prediction = roboflowService.analyzeInspectionImage(inspectionNumber);
+        Resource imageResource = this.getInspectionImage(inspectionNumber);
+        String base64Image;
+        try (InputStream inputStream = imageResource.getInputStream()) {
+            byte[] bytes = inputStream.readAllBytes();
+            base64Image = Base64.getEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read image resource", e);
+        }
+        RoboflowResponse prediction = roboflowService.analyzeInspectionImage(base64Image);
         return prediction;
     }
 

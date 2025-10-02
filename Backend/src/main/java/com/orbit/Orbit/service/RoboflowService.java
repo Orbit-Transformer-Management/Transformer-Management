@@ -17,15 +17,15 @@ public class RoboflowService {
     @Value("${roboflow.api.key}")
     private String apiKey;
 
-    public RoboflowResponse analyzeInspectionImage(String in){
+    public RoboflowResponse analyzeInspectionImage(String base64Image){
         RestTemplate restTemplate = new RestTemplate();
 
         Map<String, Object> body = new HashMap<>();
         body.put("api_key", apiKey);
         body.put("inputs", new HashMap<String, Object>() {{
             put("image", new HashMap<String, Object>() {{
-                put("type", "url");
-                put("value", "https://pbs.twimg.com/profile_images/541867053351583744/rcxem8NU_400x400.jpeg"); // replace with your image
+                put("type", "base64");
+                put("value", base64Image); // replace with your image
             }});
         }});
 
