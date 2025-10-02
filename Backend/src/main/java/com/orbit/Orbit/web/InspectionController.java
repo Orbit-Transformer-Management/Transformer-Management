@@ -81,6 +81,13 @@ public class InspectionController {
 
     }
 
+    @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze")
+    public ResponseEntity<RoboflowResponse> analyzeImage(@PathVariable String inspectionNumber) {
+        RoboflowResponse result = inspectionService.analyzeInspectionImage(inspectionNumber);
+        return ResponseEntity.ok(result);
+    }
+
+
 
 
 //    @PostMapping("/api/v1/inspections")

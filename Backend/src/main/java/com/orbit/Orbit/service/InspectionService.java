@@ -12,6 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orbit.Orbit.dto.RoboflowRequest;
+import com.orbit.Orbit.dto.RoboflowResponse;
+import org.springframework.http.*;
+import org.springframework.web.client.RestTemplate;
+
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -96,6 +103,29 @@ public class InspectionService {
 
         return new InspectionResponse(updatedInspection);
     }
+
+    public RoboflowResponse[] analyzeInspectionImage(RoboflowRequest request) {
+        // Build headers
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // Add API key to request
+        String body = String.format(
+                "{ \"api_key\": \"%s\", \"inputs\": { \"image\": { \"type\": \"%s\", \"value\": \"%s\" } } }",
+                roboflowApiKey,
+                request.getInputs().getImage().getType(),
+                request.getInputs().getImage().getValue()
+        );
+
+        HttpEntity<String> entity = new HttpEntity<>(body, headers);
+
+        // Call Roboflow API
+        ResponseEntity<RoboflowResponse[]> response =
+                restTemplate.exchange(roboflowApiUrl, HttpMethod.POST, entity, RoboflowResponse[].class);
+
+        return response.getBody();
+    }
+
 
     public boolean delete(String transformerNumber){
         if (!inspectionRepository.existsById(transformerNumber)) return false;
