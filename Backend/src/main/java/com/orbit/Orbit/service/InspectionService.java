@@ -13,7 +13,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.orbit.Orbit.dto.RoboflowRequest;
 import com.orbit.Orbit.dto.RoboflowResponse;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
