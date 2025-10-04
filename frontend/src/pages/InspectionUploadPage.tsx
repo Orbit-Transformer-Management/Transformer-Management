@@ -359,7 +359,7 @@ const InspectionUploadPage = () => {
         {type === "thermal" ? "Thermal Image (Analyzed)" : "Baseline Image"}
       </h4>
       <div className="relative border rounded-xl overflow-hidden">
-        <img src={image.url} alt={type} className="w-full h-64 object-cover" />
+        <img src={image.url} alt={type} className="max-w-full h-auto" />
 
         {/* Analyzing overlay */}
         {type === "thermal" && isAnalyzing && (
