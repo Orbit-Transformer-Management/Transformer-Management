@@ -88,6 +88,18 @@ public class InspectionController {
         return ResponseEntity.ok(prediction);
     }
 
+    @PutMapping("/api/v1/inspections/{inspectionNumber}/analyze")
+    public ResponseEntity<RoboflowResponse> updatePrediction(
+            @PathVariable String inspectionNumber,
+            @RequestBody RoboflowResponse prediction) {
+
+        // Save the provided prediction JSON to DB
+        inspectionService.updatePrediction(inspectionNumber, prediction);
+
+        // Return it back
+        return ResponseEntity.ok(prediction);
+    }
+
 
 
 

@@ -127,6 +127,31 @@ public class InspectionService {
         }
     }
 
+    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
+        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                .orElse(null);
+
+        if (inspection == null) {
+            return null; // or throw new RuntimeException("Inspection not found");
+        }
+
+        try {
+            // Convert DTO -> JSON string
+            String json = objectMapper.writeValueAsString(prediction);
+
+            // Save it in the inspection
+            inspection.setPredictionJson(json);
+            inspectionRepository.save(inspection);
+
+            return prediction; // return the same DTO back
+        } catch (Exception e) {
+            throw new RuntimeException("Error saving prediction JSON", e);
+        }
+    }
+
+
+
+
 
     public boolean delete(String transformerNumber){
         if (!inspectionRepository.existsById(transformerNumber)) return false;
