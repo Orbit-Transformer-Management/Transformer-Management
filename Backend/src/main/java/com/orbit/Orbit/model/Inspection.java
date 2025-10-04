@@ -19,6 +19,9 @@ public class Inspection {
     private String status;
     private String inspection_image_url;
 
+    @Column(columnDefinition = "TEXT")
+    private String predictionJson;
+
     @ManyToOne
     @JoinColumn(name = "transformer_number", referencedColumnName = "transformerNumber")
     private Transformer transformer;
@@ -27,7 +30,7 @@ public class Inspection {
     }
 
 
-    public Inspection(Transformer transformer, String inspectionNumber, String inspectionDate, String inspectionTime, String branch, String maintenanceDate, String maintenanceTime, String status) {
+    public Inspection(Transformer transformer, String inspectionNumber, String inspectionDate, String inspectionTime, String branch, String maintenanceDate, String maintenanceTime, String status, String predictionJson) {
         this.inspectionNumber = inspectionNumber;
         this.transformer = transformer;
         this.inspectionDate = inspectionDate;
@@ -36,6 +39,7 @@ public class Inspection {
         this.maintenanceDate = maintenanceDate;
         this.maintenanceTime = maintenanceTime;
         this.status = status;
+        this.predictionJson = predictionJson;
     }
 
     public String getInspectionNumber() {
@@ -108,6 +112,14 @@ public class Inspection {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getPredictionJson() {
+        return predictionJson;
+    }
+
+    public void setPredictionJson(String predictionJson) {
+        this.predictionJson = predictionJson;
     }
 }
 

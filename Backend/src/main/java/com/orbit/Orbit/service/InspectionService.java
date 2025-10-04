@@ -6,6 +6,7 @@ import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionRepo;
 import com.orbit.Orbit.repo.TransformerRepo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,10 @@ import java.util.*;
 
 @Service
 public class InspectionService {
+
+    //For Roboflow
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private final InspectionRepo inspectionRepository;
 
@@ -105,17 +110,21 @@ public class InspectionService {
         return new InspectionResponse(updatedInspection);
     }
 
-    public RoboflowResponse analyzeInspectionImage(String inspectionNumber) {
-        Resource imageResource = this.getInspectionImage(inspectionNumber);
-        String base64Image;
-        try (InputStream inputStream = imageResource.getInputStream()) {
-            byte[] bytes = inputStream.readAllBytes();
-            base64Image = Base64.getEncoder().encodeToString(bytes);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read image resource", e);
+    public RoboflowResponse getPrediction(String inspectionNumber) {
+        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                .orElse(null);
+
+        if (inspection == null || inspection.getPredictionJson() == null) {
+            return null;
         }
-        RoboflowResponse prediction = roboflowService.analyzeInspectionImage(base64Image);
-        return prediction;
+        try {
+            return objectMapper.readValue(
+                    inspection.getPredictionJson(),
+                    RoboflowResponse.class
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing prediction JSON", e);
+        }
     }
 
 
@@ -150,6 +159,17 @@ public class InspectionService {
             Inspection inspection = inspectionRepository.findById(inspectionNumber)
                     .orElse(null);
             inspection.setInspection_image_url(final_url);
+
+            //Doing Analysis
+            String base64Image;
+            try (InputStream inputStream = image.getInputStream()) {
+                byte[] bytes = inputStream.readAllBytes();
+                base64Image = Base64.getEncoder().encodeToString(bytes);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read image resource", e);
+            }
+            RoboflowResponse prediction = roboflowService.analyzeInspectionImage(base64Image);
+            inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
             this.inspectionRepository.save(inspection);
 
         return final_url;
