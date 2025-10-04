@@ -353,32 +353,46 @@ const InspectionUploadPage = () => {
   };
 
   // === Display Card (with bounding boxes) ===
-  const ImageDisplayCard = ({ image, type }: { image: ImageDetails; type: "thermal" | "baseline" }) => (
-    <div className="bg-white p-4 rounded-xl shadow-lg">
-      <h4 className={`text-lg font-semibold mb-2 ${type === "thermal" ? "text-blue-600" : "text-green-600"}`}>
-        {type === "thermal" ? "Thermal Image (Analyzed)" : "Baseline Image"}
-      </h4>
-      <div className="relative border rounded-xl overflow-hidden">
-        <img src={image.url} alt={type} className="max-w-full h-auto" />
+  const ImageDisplayCard = ({ image, type }: { image: ImageDetails; type: "thermal" | "baseline" }) => {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [scale, setScale] = useState({ x: 1, y: 1 });
 
-        {/* Analyzing overlay */}
-        {type === "thermal" && isAnalyzing && (
-          <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center text-white font-bold text-lg">
-            Analyzing...
-          </div>
-        )}
+  useEffect(() => {
+    if (imgRef.current) {
+      const img = imgRef.current;
+      setScale({
+        x: img.clientWidth / img.naturalWidth,
+        y: img.clientHeight / img.naturalHeight,
+      });
+    }
+  }, [image.url]);
 
-        {/* Bounding boxes (direct, no rescale) */}
+  return (
+    <div className="bg-white p-4 rounded-xl shadow-lg relative">
+      <h4 className="text-lg font-semibold mb-2">{type === "thermal" ? "Thermal" : "Baseline"}</h4>
+
+      <div className="relative inline-block">
+        <img
+          ref={imgRef}
+          src={image.url}
+          alt={type}
+          className="max-w-full h-auto"
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            setScale({
+              x: img.clientWidth / img.naturalWidth,
+              y: img.clientHeight / img.naturalHeight,
+            });
+          }}
+        />
+
         {type === "thermal" &&
           thermalPredictions.map((pred, idx) => {
-            const left = pred.x - pred.width / 2;
-            const top = pred.y - pred.height / 2;
-            const color =
-              pred.label === "pf"
-                ? "red"
-                : pred.label === "f"
-                ? "orange"
-                : "green";
+            const left = (pred.x - pred.width / 2) * scale.x;
+            const top = (pred.y - pred.height / 2) * scale.y;
+            const width = pred.width * scale.x;
+            const height = pred.height * scale.y;
+            const color = pred.label === "pf" ? "red" : pred.label === "f" ? "orange" : "green";
 
             return (
               <div
@@ -387,35 +401,22 @@ const InspectionUploadPage = () => {
                 style={{
                   left,
                   top,
-                  width: pred.width,
-                  height: pred.height,
+                  width,
+                  height,
                   border: `2px solid ${color}`,
                 }}
               >
-                <span
-                  className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white bg-opacity-80 text-black"
-                >
+                <span className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white bg-opacity-80 text-black">
                   {pred.tag}
                 </span>
               </div>
             );
           })}
       </div>
-      <div className="mt-2 text-sm text-gray-600">
-        {image.condition !== "N/A" && (
-          <p>
-            <strong>Condition:</strong> {image.condition}
-          </p>
-        )}
-        <p>
-          <strong>File:</strong> {image.fileName}
-        </p>
-        <p>
-          <strong>Date:</strong> {image.date}
-        </p>
-      </div>
     </div>
   );
+};
+
 
   // === Render ===
   if (isLoading) {
