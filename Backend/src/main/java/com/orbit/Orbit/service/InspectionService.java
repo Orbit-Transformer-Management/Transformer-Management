@@ -6,32 +6,45 @@ import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionRepo;
 import com.orbit.Orbit.repo.TransformerRepo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.orbit.Orbit.dto.RoboflowResponse;
+import org.springframework.http.*;
+import org.springframework.web.client.RestTemplate;
+
+
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class InspectionService {
+
+    //For Roboflow
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private final InspectionRepo inspectionRepository;
 
     private final TransformerService transformerService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService) {
+    private final RoboflowService roboflowService;
+
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService) {
         this.inspectionRepository = inspectionRepository;
         this.transformerService = transformerService;
+        this.roboflowService = roboflowService;
     }
 
     public Inspection save(InspectionRequest req){
@@ -97,6 +110,49 @@ public class InspectionService {
         return new InspectionResponse(updatedInspection);
     }
 
+    public RoboflowResponse getPrediction(String inspectionNumber) {
+        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                .orElse(null);
+
+        if (inspection == null || inspection.getPredictionJson() == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(
+                    inspection.getPredictionJson(),
+                    RoboflowResponse.class
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Error parsing prediction JSON", e);
+        }
+    }
+
+    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
+        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                .orElse(null);
+
+        if (inspection == null) {
+            return null; // or throw new RuntimeException("Inspection not found");
+        }
+
+        try {
+            // Convert DTO -> JSON string
+            String json = objectMapper.writeValueAsString(prediction);
+
+            // Save it in the inspection
+            inspection.setPredictionJson(json);
+            inspectionRepository.save(inspection);
+
+            return prediction; // return the same DTO back
+        } catch (Exception e) {
+            throw new RuntimeException("Error saving prediction JSON", e);
+        }
+    }
+
+
+
+
+
     public boolean delete(String transformerNumber){
         if (!inspectionRepository.existsById(transformerNumber)) return false;
         inspectionRepository.deleteById(transformerNumber);
@@ -128,6 +184,17 @@ public class InspectionService {
             Inspection inspection = inspectionRepository.findById(inspectionNumber)
                     .orElse(null);
             inspection.setInspection_image_url(final_url);
+
+            //Doing Analysis
+            String base64Image;
+            try (InputStream inputStream = image.getInputStream()) {
+                byte[] bytes = inputStream.readAllBytes();
+                base64Image = Base64.getEncoder().encodeToString(bytes);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read image resource", e);
+            }
+            RoboflowResponse prediction = roboflowService.analyzeInspectionImage(base64Image);
+            inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
             this.inspectionRepository.save(inspection);
 
         return final_url;
