@@ -10,8 +10,6 @@ import {
   Upload,
   ChevronLeft,
   Check,
-  Edit3,
-  Trash2,
 } from "lucide-react";
 import axios from "axios";
 
@@ -68,7 +66,7 @@ const InspectionUploadPage = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [comment, setComment] = useState("");
 
-  // Fetch predictions from backend
+  // === Fetch predictions (no rescaling needed) ===
   const fetchPredictions = async () => {
     if (!inspectionNo) return;
     try {
@@ -91,6 +89,8 @@ const InspectionUploadPage = () => {
             } else if (det.class === "pf") {
               faultCount++;
               tag = `Fault ${faultCount}`;
+            } else {
+              tag = `Normal`;
             }
             detections.push({
               x: det.x,
@@ -114,7 +114,7 @@ const InspectionUploadPage = () => {
     }
   };
 
-  // Load inspection details and images
+  // === Load inspection + images ===
   useEffect(() => {
     const fetchInspectionData = async () => {
       if (!inspectionNo) return;
@@ -168,20 +168,14 @@ const InspectionUploadPage = () => {
     fetchInspectionData();
   }, [inspectionNo]);
 
-  const environmentalConditions = [
-    { name: "Sunny", icon: <Sun size={16} /> },
-    { name: "Cloudy", icon: <Cloud size={16} /> },
-    { name: "Rainy", icon: <CloudRain size={16} /> },
-  ];
-
-  // Upload image
+  // === Upload ===
   const uploadImage = async (
     file: File,
     type: "thermal" | "baseline",
     condition: string
   ) => {
     if (type === "baseline" && !transformerNo) {
-      alert("Cannot upload baseline image: Transformer number is missing.");
+      alert("Cannot upload baseline image: Transformer number missing.");
       return;
     }
 
@@ -222,7 +216,7 @@ const InspectionUploadPage = () => {
 
       if (type === "thermal") {
         setThermalImage(newImage);
-        setTimeout(() => fetchPredictions(), 500);
+        setTimeout(() => fetchPredictions(), 800);
       } else {
         setBaselineImage(newImage);
       }
@@ -270,7 +264,7 @@ const InspectionUploadPage = () => {
     }
   };
 
-  // --- UI Components ---
+  // === Upload Progress Modal ===
   const ProgressModal = () => {
     if (!uploadProgress.isVisible) return null;
     return (
@@ -305,19 +299,63 @@ const InspectionUploadPage = () => {
     );
   };
 
-  const ImageDisplayCard = ({
-    image,
-    type,
-  }: {
-    image: ImageDetails;
-    type: "thermal" | "baseline";
-  }) => (
+  // === Upload Card (for missing images) ===
+  const ImageUploadCard = ({ type }: { type: "thermal" | "baseline" }) => {
+    const isThermal = type === "thermal";
+    const ref = isThermal ? thermalInputRef : baselineInputRef;
+
+    return (
+      <div className="bg-white p-6 rounded-xl shadow-lg">
+        <h3 className="text-xl font-bold mb-4 flex items-center text-gray-800">
+          {isThermal ? (
+            <UploadCloud className="mr-3 text-blue-600" size={24} />
+          ) : (
+            <Image className="mr-3 text-green-600" size={24} />
+          )}
+          {isThermal ? "Upload Thermal Image" : "Upload Baseline Image"}
+        </h3>
+        <div
+          className={`border-2 border-dashed ${
+            isThermal
+              ? "border-blue-300 bg-blue-50 hover:bg-blue-100"
+              : "border-green-300 bg-green-50 hover:bg-green-100"
+          } rounded-xl p-8 text-center transition-colors cursor-pointer`}
+          onClick={() => ref.current?.click()}
+        >
+          <Upload
+            className={`${
+              isThermal ? "text-blue-500" : "text-green-500"
+            } mb-4 mx-auto`}
+            size={48}
+          />
+          <p className="text-gray-600 mb-2 font-semibold">
+            Drop image here or click to browse
+          </p>
+          <button
+            className={`${
+              isThermal
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-green-600 hover:bg-green-700"
+            } text-white px-6 py-2 rounded-lg font-semibold mt-4`}
+          >
+            Choose File
+          </button>
+        </div>
+        <input
+          ref={ref}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => handleFileSelect(e, type)}
+        />
+      </div>
+    );
+  };
+
+  // === Display Card (with bounding boxes) ===
+  const ImageDisplayCard = ({ image, type }: { image: ImageDetails; type: "thermal" | "baseline" }) => (
     <div className="bg-white p-4 rounded-xl shadow-lg">
-      <h4
-        className={`text-lg font-semibold mb-2 ${
-          type === "thermal" ? "text-blue-600" : "text-green-600"
-        }`}
-      >
+      <h4 className={`text-lg font-semibold mb-2 ${type === "thermal" ? "text-blue-600" : "text-green-600"}`}>
         {type === "thermal" ? "Thermal Image (Analyzed)" : "Baseline Image"}
       </h4>
       <div className="relative border rounded-xl overflow-hidden">
@@ -330,31 +368,38 @@ const InspectionUploadPage = () => {
           </div>
         )}
 
-        {/* Bounding boxes */}
+        {/* Bounding boxes (direct, no rescale) */}
         {type === "thermal" &&
-          thermalPredictions.map((pred, idx) => (
-            <div
-              key={idx}
-              className="absolute text-xs"
-              style={{
-                left: pred.x - pred.width / 2,
-                top: pred.y - pred.height / 2,
-                width: pred.width,
-                height: pred.height,
-                border: `2px solid ${
-                  pred.label === "pf" ? "red" : "orange"
-                }`,
-              }}
-            >
-              <span
-                className={`absolute bottom-0 left-0 px-1 text-[10px] text-white ${
-                  pred.label === "pf" ? "bg-red-600" : "bg-orange-500"
-                }`}
+          thermalPredictions.map((pred, idx) => {
+            const left = pred.x - pred.width / 2;
+            const top = pred.y - pred.height / 2;
+            const color =
+              pred.label === "pf"
+                ? "red"
+                : pred.label === "f"
+                ? "orange"
+                : "green";
+
+            return (
+              <div
+                key={idx}
+                className="absolute text-xs"
+                style={{
+                  left,
+                  top,
+                  width: pred.width,
+                  height: pred.height,
+                  border: `2px solid ${color}`,
+                }}
               >
-                {pred.tag}
-              </span>
-            </div>
-          ))}
+                <span
+                  className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white bg-opacity-80 text-black"
+                >
+                  {pred.tag}
+                </span>
+              </div>
+            );
+          })}
       </div>
       <div className="mt-2 text-sm text-gray-600">
         {image.condition !== "N/A" && (
@@ -372,6 +417,7 @@ const InspectionUploadPage = () => {
     </div>
   );
 
+  // === Render ===
   if (isLoading) {
     return (
       <PageLayout title="Loading Inspection...">
@@ -385,39 +431,35 @@ const InspectionUploadPage = () => {
       <ProgressModal />
 
       <div className="flex-shrink-0 flex items-center space-x-4 mb-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-gray-100"
-        >
+        <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-gray-100">
           <ChevronLeft size={24} />
         </button>
         <div>
           <h2 className="text-2xl font-bold text-gray-800">
             Upload Images for Inspection {inspectionNo}
           </h2>
-          {transformerNo && (
-            <p className="text-gray-500">
-              Associated Transformer: {transformerNo}
-            </p>
-          )}
+          {transformerNo && <p className="text-gray-500">Associated Transformer: {transformerNo}</p>}
         </div>
       </div>
 
-      {/* Images */}
+      {/* ✅ Show upload cards if images missing */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {baselineImage && (
+        {baselineImage ? (
           <ImageDisplayCard image={baselineImage} type="baseline" />
+        ) : (
+          <ImageUploadCard type="baseline" />
         )}
-        {thermalImage && (
+
+        {thermalImage ? (
           <ImageDisplayCard image={thermalImage} type="thermal" />
+        ) : (
+          <ImageUploadCard type="thermal" />
         )}
       </div>
 
       {/* Model Output */}
       <div className="mt-8 bg-white p-6 rounded-xl shadow-lg">
-        <h3 className="text-xl font-bold mb-4 text-red-600">
-          Model Detected Issues
-        </h3>
+        <h3 className="text-xl font-bold mb-4 text-red-600">Model Detected Issues</h3>
 
         {isAnalyzing ? (
           <p className="text-blue-600">Analyzing...</p>
@@ -426,18 +468,20 @@ const InspectionUploadPage = () => {
             {thermalPredictions.map((pred, idx) => (
               <li key={idx} className="p-2 border rounded-md">
                 {pred.tag} –{" "}
-                {pred.label === "pf" ? "Faulty" : "Potentially Faulty"} | Confidence:{" "}
-                {(pred.confidence * 100).toFixed(1)}%
+                {pred.label === "pf"
+                  ? "Faulty"
+                  : pred.label === "f"
+                  ? "Potentially Faulty"
+                  : "Normal"}{" "}
+                | Confidence: {(pred.confidence * 100).toFixed(1)}%
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-green-600 font-semibold">
-            ✅ No errors detected
-          </p>
+          <p className="text-green-600 font-semibold">✅ No errors detected</p>
         )}
 
-        {/* Comment & Submit */}
+        {/* Comment + Submit */}
         <div className="mt-4">
           <label className="block font-semibold mb-2">Comments</label>
           <textarea
