@@ -178,9 +178,10 @@ public class InspectionController {
 
         InspectionComment saved = inspectionService.addComment(
                 inspectionNumber,
+                request.getTopic(),
                 request.getComment(),
-                request.getAuthor(),
-                request.getTopic()
+                request.getAuthor()
+
         );
 
         return ResponseEntity.ok(saved);
