@@ -27,14 +27,14 @@ const PageLayout: React.FC<PageLayoutProps> = ({ title, children }) => {
 
           {/* User Profile */}
           <div className="flex items-center space-x-3 bg-white px-3 py-2 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-400 to-blue-500 flex items-center justify-center shadow-sm">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-400 to-blue-500 flex items-center justify-center shadow-sm">
               <User size={20} className="text-white" />
             </div>
             <div>
-              <p className="font-semibold text-sm text-gray-800">
+              <p className="font-semibold text-xl text-gray-800">
                 Shaveen Herath
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xl text-gray-500">
                 herathshaveen@gmail.com
               </p>
             </div>
