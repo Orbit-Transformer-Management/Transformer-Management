@@ -37,6 +37,8 @@ const getStatusIcon = (status: string) => {
     }
 };
 
+const ITEMS_PER_PAGE = 5; // pagination size
+
 const InspectionsPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -46,6 +48,10 @@ const InspectionsPage: React.FC = () => {
         isOpen: boolean;
         inspection: Inspection | null;
     }>({ isOpen: false, inspection: null });
+
+    // pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+
     const navigate = useNavigate();
 
     const fetchInspections = async () => {
@@ -135,6 +141,21 @@ const InspectionsPage: React.FC = () => {
             (filters.status === "" || insp.status === filters.status)
         );
     });
+
+    // --- pagination derived data ---
+    const totalPages = Math.max(1, Math.ceil(filteredInspections.length / ITEMS_PER_PAGE));
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const pagedInspections = filteredInspections.slice(start, start + ITEMS_PER_PAGE);
+
+    // reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filters]);
+
+    // clamp current page if list shrinks
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [totalPages, currentPage]);
 
     // Reset all filters
     const resetFilters = () => {
@@ -234,10 +255,10 @@ const InspectionsPage: React.FC = () => {
                                         <Activity size={32} className="text-white" />
                                     </div>
                                     <div>
-                                        <h1 className="text-4xl font-bold text-gray-800">
+                                        <h1 className="text-5xl font-bold text-gray-800">
                                             Transformer Inspections
                                         </h1>
-                                        <p className="text-lg mt-2 font-medium text-gray-700">
+                                        <p className="text-xl mt-2 font-medium text-gray-700">
                                             Monitor and manage transformer inspection records
                                         </p>
                                     </div>
@@ -281,193 +302,222 @@ const InspectionsPage: React.FC = () => {
                     </div>
                 </div>
 
-
-
-
                 {/* Enhanced Table Container */}
                 <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
                     <div className="bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 px-8 py-6 border-b-2 border-gray-200">
-                        <h3 className="text-2xl font-bold text-gray-800 flex items-center">
+                        <h3 className="text-3xl font-bold text-gray-800 flex items-center">
                             <div className="p-3 bg-amber-100 rounded-xl mr-4">
-                                <Activity size={24} className="text-amber-600" />
+                                <Activity size={28} className="text-amber-600" />
                             </div>
                             Inspection Records
                         </h3>
                     </div>
-                    
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gradient-to-r from-slate-100 via-gray-100 to-slate-100 border-b-2 border-gray-200 sticky top-0">
-                                <tr>
-                                    <th className="p-6 w-12 text-center">
-                                        <Star size={18} className="text-gray-400 mx-auto" />
-                                    </th>
-                                    <th className="p-6 text-left text-sm font-black text-gray-800 uppercase tracking-wide">
-                                        <div className="flex items-center space-x-2">
-                                            <Zap size={16} />
-                                            <span>Transformer No.</span>
-                                        </div>
-                                    </th>
-                                    <th className="p-6 text-left text-sm font-black text-gray-800 uppercase tracking-wide">
-                                        <div className="flex items-center space-x-2">
-                                            <span>📋</span>
-                                            <span>Inspection No</span>
-                                        </div>
-                                    </th>
-                                    <th className="p-6 text-left text-sm font-black text-gray-800 uppercase tracking-wide">
-                                        <div className="flex items-center space-x-2">
-                                            <Calendar size={16} />
-                                            <span>Inspected Date</span>
-                                        </div>
-                                    </th>
-                                    <th className="p-6 text-left text-sm font-black text-gray-800 uppercase tracking-wide">
-                                        <div className="flex items-center space-x-2">
-                                            <Clock size={16} />
-                                            <span>Maintenance Date</span>
-                                        </div>
-                                    </th>
-                                    <th className="p-6 text-left text-sm font-black text-gray-800 uppercase tracking-wide">
-                                        <div className="flex items-center space-x-2">
-                                            <span>⚡</span>
-                                            <span>Status</span>
-                                        </div>
-                                    </th>
-                                    <th className="p-6 text-center text-sm font-black text-gray-800 uppercase tracking-wide">Actions</th>
-                                </tr>
 
-                                {/* Enhanced Filter Row */}
-                                <tr className="bg-white border-b border-gray-200">
-                                    <th></th>
-                                    <th className="p-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Filter..."
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-800 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
-                                            value={filters.transformerNo}
-                                            onChange={(e) => setFilters({ ...filters, transformerNo: e.target.value })}
-                                        />
-                                    </th>
-                                    <th className="p-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Filter..."
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-800 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
-                                            value={filters.inspectionNo}
-                                            onChange={(e) => setFilters({ ...filters, inspectionNo: e.target.value })}
-                                        />
-                                    </th>
-                                    <th className="p-4">
-                                        <input
-                                            type="date"
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-800 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
-                                            value={filters.inspectionDate}
-                                            onChange={(e) => setFilters({ ...filters, inspectionDate: e.target.value })}
-                                        />
-                                    </th>
-                                    <th className="p-4">
-                                        <input
-                                            type="date"
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-800 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
-                                            value={filters.maintenanceDate}
-                                            onChange={(e) => setFilters({ ...filters, maintenanceDate: e.target.value })}
-                                        />
-                                    </th>
-                                    <th className="p-4">
-                                        <select
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-800 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
-                                            value={filters.status}
-                                            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                                        >
-                                            <option value="">All</option>
-                                            <option value="Completed">Completed</option>
-                                            <option value="In Progress">In Progress</option>
-                                            <option value="Pending">Pending</option>
-                                        </select>
-                                    </th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredInspections.map((insp, index) => (
-                                    <tr key={index} className="hover:bg-gradient-to-r hover:from-amber-25 hover:to-orange-25 transition-all duration-300 group">
-                                        <td className="p-6 text-center">
-                                            <Star size={20} className="text-gray-300 hover:text-yellow-500 cursor-pointer transition-all duration-300 hover:scale-125 transform"/>
-                                        </td>
-                                        <td className="p-6">
-                                            <div className="flex items-center space-x-4">
-                                                <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center shadow-lg">
-                                                    <Zap size={20} className="text-amber-600" />
-                                                </div>
-                                                <div>
-                                                    <span className="text-lg font-black text-gray-800 group-hover:text-amber-600 transition-colors">{insp.transformerNo}</span>
-                                                </div>
+                    {/* Fixed-height content so pagination stays put */}
+                    <div className="min-h-[560px] flex flex-col">
+                        <div className="overflow-x-auto flex-1">
+                            <table className="w-full">
+                                <thead className="bg-gradient-to-r from-slate-100 via-gray-100 to-slate-100 border-b-2 border-gray-200 sticky top-0">
+                                    <tr>
+                                        <th className="p-6 w-12 text-center">
+                                            <Star size={18} className="text-gray-400 mx-auto" />
+                                        </th>
+                                        <th className="p-6 text-left text-base md:text-lg font-extrabold text-gray-900 uppercase tracking-wide">
+                                            <div className="flex items-center space-x-2">
+                                                <Zap size={16} />
+                                                <span>Transformer No.</span>
                                             </div>
-                                        </td>
-                                        <td className="p-6">
-                                            <div className="text-lg font-bold text-gray-700">{insp.inspectionNo}</div>
-                                        </td>
-                                        <td className="p-6">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="p-2 bg-purple-100 rounded-lg">
-                                                    <Calendar size={16} className="text-purple-600" />
-                                                </div>
-                                                <span className="text-lg font-semibold text-gray-700">{insp.inspectionDate}</span>
+                                        </th>
+                                        <th className="p-6 text-left text-base md:text-lg font-extrabold text-gray-900 uppercase tracking-wide">
+                                            <div className="flex items-center space-x-2">
+                                                <span>📋</span>
+                                                <span>Inspection No</span>
                                             </div>
-                                        </td>
-                                        <td className="p-6">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="p-2 bg-orange-100 rounded-lg">
-                                                    <Clock size={16} className="text-orange-600" />
-                                                </div>
-                                                <span className="text-lg font-semibold text-gray-700">{insp.maintenanceDate || '-'}</span>
+                                        </th>
+                                        <th className="p-6 text-left text-base md:text-lg font-extrabold text-gray-900 uppercase tracking-wide">
+                                            <div className="flex items-center space-x-2">
+                                                <Calendar size={16} />
+                                                <span>Inspected Date</span>
                                             </div>
-                                        </td>
-                                        <td className="p-6">
-                                            <span className={`inline-flex items-center px-4 py-2 rounded-xl text-sm font-bold border-2 shadow-md ${getStatusClass(insp.status)}`}>
-                                                <span className="mr-2">{getStatusIcon(insp.status)}</span>
-                                                {insp.status}
-                                            </span>
-                                        </td>
-                                        <td className="p-6 text-center">
-                                            <div className="flex items-center justify-center space-x-3">
-                                                <button 
-                                                    onClick={() => navigate(`/inspections/${insp.inspectionNo}/upload`)}
-                                                    className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                >
-                                                    <Eye size={16} className="mr-2" />
-                                                    View
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleEdit(insp)}
-                                                    className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                >
-                                                    <Edit size={16} className="mr-2" />
-                                                    Edit
-                                                </button>
-                                                <button 
-                                                    onClick={() => showDeleteConfirmation(insp)}
-                                                    className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                >
-                                                    <Trash2 size={16} className="mr-2" />
-                                                    Delete
-                                                </button>
+                                        </th>
+                                        <th className="p-6 text-left text-base md:text-lg font-extrabold text-gray-900 uppercase tracking-wide">
+                                            <div className="flex items-center space-x-2">
+                                                <Clock size={16} />
+                                                <span>Maintenance Date</span>
                                             </div>
-                                        </td>
+                                        </th>
+                                        <th className="p-6 text-left text-base md:text-lg font-extrabold text-gray-900 uppercase tracking-wide">
+                                            <div className="flex items-center space-x-2">
+                                                <span>⚡</span>
+                                                <span>Status</span>
+                                            </div>
+                                        </th>
+                                        <th className="p-6 text-center text-base md:text-lg font-extrabold text-gray-900 uppercase tracking-wide">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
 
-                    {/* Enhanced Empty State */}
-                    {filteredInspections.length === 0 && (
-                        <div className="text-center py-20">
-                            <div className="text-8xl mb-6">🔍</div>
-                            <h3 className="text-2xl font-bold text-gray-600 mb-3">No Inspections Found</h3>
-                            <p className="text-gray-500 text-lg">Try adjusting your search criteria or add a new inspection to get started.</p>
+                                    {/* Enhanced Filter Row */}
+                                    <tr className="bg-white border-b border-gray-200">
+                                        <th></th>
+                                        <th className="p-4">
+                                            <input
+                                                type="text"
+                                                placeholder="Filter..."
+                                                className="w-full px-4 py-3 text-base md:text-lg border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-900 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
+                                                value={filters.transformerNo}
+                                                onChange={(e) => setFilters({ ...filters, transformerNo: e.target.value })}
+                                            />
+                                        </th>
+                                        <th className="p-4">
+                                            <input
+                                                type="text"
+                                                placeholder="Filter..."
+                                                className="w-full px-4 py-3 text-base md:text-lg border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-900 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
+                                                value={filters.inspectionNo}
+                                                onChange={(e) => setFilters({ ...filters, inspectionNo: e.target.value })}
+                                            />
+                                        </th>
+                                        <th className="p-4">
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-3 text-base md:text-lg border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-900 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
+                                                value={filters.inspectionDate}
+                                                onChange={(e) => setFilters({ ...filters, inspectionDate: e.target.value })}
+                                            />
+                                        </th>
+                                        <th className="p-4">
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-3 text-base md:text-lg border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-900 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
+                                                value={filters.maintenanceDate}
+                                                onChange={(e) => setFilters({ ...filters, maintenanceDate: e.target.value })}
+                                            />
+                                        </th>
+                                        <th className="p-4">
+                                            <select
+                                                className="w-full px-4 py-3 text-base md:text-lg border-2 border-gray-200 rounded-xl bg-gradient-to-r from-gray-50 to-white text-gray-900 focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-200/50 transition-all duration-300 hover:shadow-sm font-medium"
+                                                value={filters.status}
+                                                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                                            >
+                                                <option value="">All</option>
+                                                <option value="Completed">Completed</option>
+                                                <option value="In Progress">In Progress</option>
+                                                <option value="Pending">Pending</option>
+                                            </select>
+                                        </th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y divide-gray-100">
+                                    {pagedInspections.map((insp, index) => (
+                                        <tr key={index} className="hover:bg-gradient-to-r hover:from-amber-25 hover:to-orange-25 transition-all duration-300 group">
+                                            <td className="p-6 text-center">
+                                                <Star size={20} className="text-gray-300 hover:text-yellow-500 cursor-pointer transition-all duration-300 hover:scale-125 transform"/>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center space-x-4">
+                                                    <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center shadow-lg">
+                                                        <Zap size={20} className="text-amber-600" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xl md:text-2xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors">{insp.transformerNo}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="text-xl md:text-2xl font-bold text-gray-900">{insp.inspectionNo}</div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="p-2 bg-purple-100 rounded-lg">
+                                                        <Calendar size={16} className="text-purple-600" />
+                                                    </div>
+                                                    <span className="text-xl md:text-2xl font-semibold text-gray-900">{insp.inspectionDate}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <div className="flex items-center space-x-3">
+                                                    <div className="p-2 bg-orange-100 rounded-lg">
+                                                        <Clock size={16} className="text-orange-600" />
+                                                    </div>
+                                                    <span className="text-xl md:text-2xl font-semibold text-gray-900">{insp.maintenanceDate || '-'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className={`inline-flex items-center px-5 py-3 rounded-xl text-base md:text-lg font-bold border-2 shadow-md ${getStatusClass(insp.status)}`}>
+                                                    <span className="mr-2">{getStatusIcon(insp.status)}</span>
+                                                    {insp.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-6 text-center">
+                                                <div className="flex items-center justify-center space-x-3">
+                                                    <button 
+                                                        onClick={() => navigate(`/inspections/${insp.inspectionNo}/upload`)}
+                                                        className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                                    >
+                                                        <Eye size={16} className="mr-2" />
+                                                        View
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleEdit(insp)}
+                                                        className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                                    >
+                                                        <Edit size={16} className="mr-2" />
+                                                        Edit
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => showDeleteConfirmation(insp)}
+                                                        className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                                    >
+                                                        <Trash2 size={16} className="mr-2" />
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {/* Empty state kept inside the fixed-height area */}
+                            {filteredInspections.length === 0 && (
+                                <div className="text-center py-20">
+                                    <div className="text-8xl mb-6">🔍</div>
+                                    <h3 className="text-3xl font-extrabold text-gray-700 mb-3">No Inspections Found</h3>
+                                    <p className="text-lg md:text-xl text-gray-600">Try adjusting your search criteria or add a new inspection to get started.</p>
+                                </div>
+                            )}
                         </div>
-                    )}
+
+                        {/* Footer always rendered so pagination doesn't move */}
+                        <div className="px-6 py-5 border-t">
+                            {filteredInspections.length > 0 ? (
+                                <div className="flex flex-col sm:flex-row items-center justify-between">
+                                    <p className="text-base md:text-lg text-gray-700 mb-3 sm:mb-0">
+                                        Showing{' '}
+                                        <span className="font-semibold">
+                                            {(currentPage - 1) * ITEMS_PER_PAGE + 1}
+                                        </span>{' '}
+                                        –{' '}
+                                        <span className="font-semibold">
+                                            {Math.min(currentPage * ITEMS_PER_PAGE, filteredInspections.length)}
+                                        </span>{' '}
+                                        of <span className="font-semibold">{filteredInspections.length}</span> inspections
+                                    </p>
+
+                                    <Pagination
+                                        page={currentPage}
+                                        totalPages={totalPages}
+                                        onChange={(p: number) => {
+                                            if (p >= 1 && p <= totalPages) setCurrentPage(p);
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="h-6" />
+                            )}
+                        </div>
+                    </div>
                 </div>
 
             </div>

@@ -12,7 +12,7 @@ const Sidebar = () => {
   const getNavLinkClass = ({ isActive }: { isActive: boolean }): string =>
     `group relative flex items-center p-3 rounded-lg transition-all duration-200 ease-in-out cursor-pointer ${
       isActive ? 'bg-gray-300 text-gray-900 shadow-sm'
-               : 'text-gray-700 hover:bg-gray-200 hover:text-gray-900'
+               : 'text-lg gray-700 hover:bg-gray-200 hover:text-gray-900'
     }`;
 
   const menuItems = [
@@ -39,11 +39,11 @@ const Sidebar = () => {
         <div className="p-5 border-b border-gray-200 flex flex-col">
           <div className="flex items-center justify-between">
             <div className={`flex items-center space-x-3 ${isCollapsed ? 'justify-center' : ''}`}>
-              <div className="w-9 h-9 bg-gray-400 rounded-lg flex items-center justify-center shadow-sm">
-                <span className="text-white font-bold text-sm">O</span>
+              <div className="w-9 h-9 bg-gray-400 rounded-2xl flex items-center justify-center shadow-sm">
+                <span className="text-white font-bold text-2xl">O</span>
               </div>
               {!isCollapsed && (
-                <h1 className="text-lg font-bold tracking-wide font-serif text-gray-800">
+                <h1 className="text-2xl font-bold tracking-wide font-serif text-gray-800">
                   Orbit
                 </h1>
               )}
@@ -55,7 +55,7 @@ const Sidebar = () => {
         {/* Main Navigation */}
         <nav className="relative flex-1 p-4 space-y-2">
           {!isCollapsed && (
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 mb-2">
+            <h2 className="text-lg font-semibold text-gray-500 uppercase tracking-wide px-2 mb-2">
               Main Menu
             </h2>
           )}
@@ -96,7 +96,7 @@ const Sidebar = () => {
         {/* Bottom Section */}
         <div className="p-4 border-t border-gray-200 space-y-2">
           {!isCollapsed && (
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-2 mb-2">
+            <h2 className="text-lg font-semibold text-gray-500 uppercase tracking-wide px-2 mb-2">
               Support
             </h2>
           )}
