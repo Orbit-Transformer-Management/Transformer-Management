@@ -40,6 +40,10 @@ const TransformersListPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
 
+  // Helper: get a consistent transformer ID no matter the backend field name
+  const getTransformerId = (t: any) =>
+    t?.transformerNumber ?? t?.transformerNo ?? t?.id ?? '';
+
   const fetchTransformers = async () => {
     try {
       const res = await axios.get('http://localhost:8080/api/v1/transformers');
@@ -60,10 +64,15 @@ const TransformersListPage = () => {
   const handleDelete = async () => {
     if (!deleteConfirmation.transformer) return;
     try {
+      const id = getTransformerId(deleteConfirmation.transformer);
+      if (!id) {
+        console.error('Missing transformer id for delete');
+        return;
+      }
       await axios.delete(
-        `http://localhost:8080/api/v1/transformers/${deleteConfirmation.transformer.transformerNumber}`,
+        `http://localhost:8080/api/v1/transformers/${encodeURIComponent(id)}`
       );
-      fetchTransformers();
+      await fetchTransformers();
       setDeleteConfirmation({ isOpen: false, transformer: null });
     } catch (err) {
       console.error('Error deleting transformer:', err);
@@ -88,13 +97,20 @@ const TransformersListPage = () => {
     handleModalClose();
   };
 
-  const filteredData = transformersData.filter((t) =>
-    (t.transformerNumber?.toLowerCase?.() ?? '').includes(filters.transformerNo.toLowerCase()) &&
-    (t.poleNumber?.toLowerCase?.() ?? '').includes(filters.poleNo.toLowerCase()) &&
-    (filters.region === '' || t.region === filters.region) &&
-    (filters.type === '' || t.type === filters.type)
-  );
+  // Filters now support both old/new field names & are case-safe
+  const filteredData = transformersData.filter((t) => {
+    const id = (getTransformerId(t) || '').toString().toLowerCase();
+    const pole = (t.poleNumber ?? t.poleNo ?? '').toString().toLowerCase();
+    const region = (t.region ?? '').toString();
+    const type = (t.type ?? '').toString();
 
+    return (
+      id.includes(filters.transformerNo.toLowerCase()) &&
+      pole.includes(filters.poleNo.toLowerCase()) &&
+      (filters.region === '' || region === filters.region) &&
+      (filters.type === '' || type === filters.type)
+    );
+  });
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / ITEMS_PER_PAGE));
   const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -152,7 +168,7 @@ const TransformersListPage = () => {
               <p className="text-gray-700 text-lg mb-4">
                 Are you sure you want to delete transformer{' '}
                 <span className="font-bold text-red-600">
-                  {deleteConfirmation.transformer?.transformerNumber}
+                  {getTransformerId(deleteConfirmation.transformer)}
                 </span>
                 ?
               </p>
@@ -183,7 +199,7 @@ const TransformersListPage = () => {
 
       {/* Page scrolls; no inner vertical scrollbar */}
       <div className="flex flex-col space-y-8">
-        {/* Top header */}
+        {/* Top header (now includes the moved buttons on the right) */}
         <div className="bg-gray-50 rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
           <div className="relative p-8">
             <div className="absolute inset-0 opacity-10">
@@ -191,13 +207,14 @@ const TransformersListPage = () => {
               <div className="absolute -bottom-5 -left-5 w-32 h-32 bg-gradient-to-br from-yellow-400 to-amber-400 rounded-full blur-2xl"></div>
             </div>
 
-            <div className="relative z-10 flex justify-between items-center">
-              <div className="flex items-center space-x-6">
+            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              {/* Left: back + title + add */}
+              <div className="flex items-center flex-wrap gap-6">
                 <button
                   onClick={() => navigate(-1)}
                   className="px-4 py-2 bg-white text-black rounded-xl text-lg font-semibold border border-gray-300 hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
                 >
-                  <ChevronLeft size={22} className="text-white" />
+                  <ChevronLeft size={22} className="text-black" />
                 </button>
 
                 <div className="flex items-center space-x-4">
@@ -216,48 +233,48 @@ const TransformersListPage = () => {
                   onClick={() => setIsAddModalOpen(true)}
                   className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 text-white px-8 py-4 rounded-2xl 
                              hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
-                             text-xl font-extrabold shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 ml-8"
+                             text-xl font-extrabold shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1"
                 >
                   <Plus size={24} className="mr-3" />
                   <span>Add Transformer</span>
                 </button>
               </div>
 
-              <div className="hidden" />
+              {/* Right: moved tabs here */}
+              <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm self-start lg:self-auto">
+                <button
+                  className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 text-white 
+                             px-4 py-2 rounded-xl 
+                             hover:from-gray-600 hover:to-gray-800 
+                             text-lg font-extrabold transition-all duration-300 
+                             shadow-lg hover:shadow-xl transform hover:scale-105"
+                  onClick={() => navigate('/transformers')}
+                >
+                  <Zap size={20} />
+                  <span className="ml-2">Transformers</span>
+                </button>
+                <button
+                  onClick={() => navigate('/inspections')}
+                  className="ml-2 px-8 py-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-extrabold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 border border-blue-400/20"
+                >
+                  <Activity size={20} />
+                  <span>Inspections</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Inventory card */}
         <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 overflow-hidden">
-          {/* Card header with tabs on the right */}
-          <div className="bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 px-6 lg:px-8 py-5 border-b-2 border-gray-200 flex items-center justify-between">
+          {/* Card header (no tabs here anymore) */}
+          <div className="bg-gradient-to-r from-slate-50 via-gray-100 to-slate-50 px-6 lg:px-8 py-5 border-b-2 border-gray-200">
             <h3 className="text-3xl font-bold text-gray-800 flex items-center">
               <div className="p-3 bg-amber-100 rounded-xl mr-4">
                 <Zap size={28} className="text-amber-600" />
               </div>
               Transformer Inventory
             </h3>
-
-            <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm">
-              <button
-                className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 text-white 
-                           px-4 py-2 rounded-xl 
-                           hover:from-gray-600 hover:to-gray-800 
-                           text-lg font-extrabold transition-all duration-300 
-                           shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <Zap size={20} />
-                <span className="ml-2">Transformers</span>
-              </button>
-              <button
-                onClick={() => navigate('/inspections')}
-                className="ml-2 px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-xl font-extrabold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 border border-blue-400/20"
-              >
-                <Activity size={20} />
-                <span>Inspections</span>
-              </button>
-            </div>
           </div>
 
           {/* NO inner vertical scroll — only horizontal if needed */}
@@ -344,85 +361,88 @@ const TransformersListPage = () => {
               </thead>
 
               <tbody className="divide-y divide-gray-100">
-                {pagedData.map((transformer, index) => (
-                  <tr
-                    key={index}
-                    className="hover:bg-gradient-to-r hover:from-amber-25 hover:to-orange-25 transition-all duration-300 group"
-                  >
-                    <td className="p-6 text-center">
-                      <Star
-                        size={20}
-                        className="text-gray-300 hover:text-yellow-500 cursor-pointer transition-all duration-300 hover:scale-125 transform"
-                      />
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center shadow-lg">
-                          <Zap size={20} className="text-amber-600" />
+                {pagedData.map((transformer, index) => {
+                  const id = getTransformerId(transformer);
+                  return (
+                    <tr
+                      key={id || index}
+                      className="hover:bg-gradient-to-r hover:from-amber-25 hover:to-orange-25 transition-all duration-300 group"
+                    >
+                      <td className="p-6 text-center">
+                        <Star
+                          size={20}
+                          className="text-gray-300 hover:text-yellow-500 cursor-pointer transition-all duration-300 hover:scale-125 transform"
+                        />
+                      </td>
+                      <td className="p-6">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-gradient-to-br from-amber-100 to-orange-100 rounded-xl flex items-center justify-center shadow-lg">
+                            <Zap size={20} className="text-amber-600" />
+                          </div>
+                          <div>
+                            <span className="text-xl md:text-2xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors">
+                              {id}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-xl md:text-2xl font-extrabold text-gray-900 group-hover:text-amber-600 transition-colors">
-                            {transformer.transformerNumber}
+                      </td>
+                      <td className="p-6">
+                        <div className="text-xl md:text-2xl font-bold text-gray-900">
+                          {transformer.poleNumber ?? transformer.poleNo}
+                        </div>
+                      </td>
+                      <td className="p-6">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 bg-blue-100 rounded-lg">
+                            <MapPin size={16} className="text-blue-600" />
+                          </div>
+                          <span className="text-xl md:text-2xl font-semibold text-gray-900">
+                            {transformer.region}
                           </span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-6">
-                      <div className="text-xl md:text-2xl font-bold text-gray-900">
-                        {transformer.poleNumber}
-                      </div>
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <MapPin size={16} className="text-blue-600" />
-                        </div>
-                        <span className="text-xl md:text-2xl font-semibold text-gray-900">
-                          {transformer.region}
+                      </td>
+                      <td className="p-6">
+                        <span
+                          className={`inline-flex items-center px-5 py-3 rounded-xl text-base md:text-lg font-bold border-2 shadow-md ${
+                            transformer.type === 'Bulk'
+                              ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 border-purple-300'
+                              : 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-300'
+                          }`}
+                        >
+                          <span className="mr-2">{transformer.type === 'Bulk' ? '🏭' : '🏘️'}</span>
+                          {transformer.type}
                         </span>
-                      </div>
-                    </td>
-                    <td className="p-6">
-                      <span
-                        className={`inline-flex items-center px-5 py-3 rounded-xl text-base md:text-lg font-bold border-2 shadow-md ${
-                          transformer.type === 'Bulk'
-                            ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-800 border-purple-300'
-                            : 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800 border-green-300'
-                        }`}
-                      >
-                        <span className="mr-2">{transformer.type === 'Bulk' ? '🏭' : '🏘️'}</span>
-                        {transformer.type}
-                      </span>
-                    </td>
-                    <td className="p-6 text-center">
-                      <div className="flex items-center justify-center space-x-3">
-                        <button
-                          onClick={() =>
-                            navigate(`/transformers/${transformer.transformerNumber}/history`)
-                          }
-                          className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                        >
-                          <Eye size={16} className="mr-2" />
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleEdit(transformer)}
-                          className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                        >
-                          <Edit size={16} className="mr-2" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => showDeleteConfirmation(transformer)}
-                          className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                        >
-                          <Trash2 size={16} className="mr-2" />
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-6 text-center">
+                        <div className="flex items-center justify-center space-x-3">
+                          <button
+                            onClick={() =>
+                              navigate(`/transformers/${encodeURIComponent(id)}/history`)
+                            }
+                            className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                          >
+                            <Eye size={16} className="mr-2" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleEdit(transformer)}
+                            className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                          >
+                            <Edit size={16} className="mr-2" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => showDeleteConfirmation(transformer)}
+                            className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+                          >
+                            <Trash2 size={16} className="mr-2" />
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
@@ -434,6 +454,14 @@ const TransformersListPage = () => {
                 <p className="text-lg md:text-xl text-gray-600">
                   Try adjusting your search criteria or add a new transformer to get started.
                 </p>
+                <div className="mt-6">
+                  <button
+                    onClick={resetFilters}
+                    className="px-5 py-2 bg-gray-100 rounded-xl border hover:bg-gray-200 transition"
+                  >
+                    Reset filters
+                  </button>
+                </div>
               </div>
             )}
           </div>
