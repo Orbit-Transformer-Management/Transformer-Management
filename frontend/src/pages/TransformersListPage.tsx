@@ -170,7 +170,8 @@ const TransformersListPage = () => {
             )}
 
             <div className="flex flex-col h-full space-y-8">
-                <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-3xl border border-amber-200 shadow-xl overflow-hidden">
+                <div className="bg-gray-50 rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
+
                     <div className="relative p-8">
                         <div className="absolute inset-0 opacity-10">
                             <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-amber-400 to-orange-400 rounded-full blur-3xl"></div>
@@ -180,11 +181,13 @@ const TransformersListPage = () => {
                         <div className="relative z-10 flex justify-between items-center">
                             <div className="flex items-center space-x-6">
                                 <button
-                                    onClick={() => navigate(-1)}
-                                    className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
+                                onClick={() => navigate(-1)}
+                                className="px-4 py-2 bg-white text-black rounded-xl text-lg font-semibold border border-gray-300 hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
                                 >
-                                    <ChevronLeft size={24} className="text-white" />
+                                <ChevronLeft size={22} className="text-white" />
                                 </button>
+
+
                                 <div className="flex items-center space-x-4">
                                     <div className="p-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg">
                                         <Zap size={32} className="text-white" />
@@ -201,26 +204,33 @@ const TransformersListPage = () => {
 
                                 {/* --- ADD BUTTON ONCLICK CHANGE --- */}
                                 <button
-                                    onClick={() => setIsAddModalOpen(true)} // This now opens the ADD modal
-                                    className="flex items-center bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white px-8 py-4 rounded-2xl hover:from-amber-600 hover:via-orange-600 hover:to-red-600 text-lg font-bold shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 ml-8"
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 text-white px-8 py-4 rounded-2xl 
+                                            hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
+                                            text-lg font-bold shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 ml-8"
                                 >
-                                    <Plus size={24} className="mr-3" />
-                                    <span>Add Transformer</span>
+                                <Plus size={24} className="mr-3" />
+                                <span>Add Transformer</span>
                                 </button>
+
                             </div>
 
                             <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm">
                                 <button
-                                    className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl shadow-lg text-lg font-bold transition-all duration-300 flex items-center space-x-2"
+                                    className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 text-white 
+                                                px-4 py-2 rounded-xl 
+                                                hover:from-gray-600 hover:to-gray-800 
+                                                text-sm font-bold transition-all duration-300 
+                                                shadow-lg hover:shadow-xl transform hover:scale-105"
                                 >
-                                    <Zap size={18} />
+                                    <Zap size={20} />
                                     <span>Transformers</span>
                                 </button>
                                 <button
                                     onClick={() => navigate('/inspections')}
                                     className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
                                 >
-                                    <Activity size={18} />
+                                    <Activity size={20} />
                                     <span>Inspections</span>
                                 </button>
                             </div>

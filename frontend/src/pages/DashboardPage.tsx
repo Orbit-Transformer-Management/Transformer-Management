@@ -102,7 +102,8 @@ const DashboardPage = () => {
       <div className="flex flex-col h-full space-y-8">
 
         {/* Enhanced Header */}
-        <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-3xl border border-amber-200 shadow-xl overflow-hidden">
+        <div className="bg-gray-50 rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
+
           <div className="relative p-8">
             {/* Background Pattern */}
             <div className="absolute inset-0 opacity-10">
@@ -130,7 +131,11 @@ const DashboardPage = () => {
               {/* Enhanced Tab Navigation */}
               <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm">
                 <button 
-                  className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl shadow-lg text-lg font-bold transition-all duration-300 flex items-center space-x-2"
+                  className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 text-white 
+                              px-4 py-2 rounded-xl 
+                              hover:from-gray-600 hover:to-gray-800 
+                              text-sm font-bold transition-all duration-300 
+                              shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
                   <Activity size={18} />
                   <span>Dashboard</span>

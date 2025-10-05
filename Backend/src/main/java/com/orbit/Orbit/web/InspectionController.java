@@ -1,9 +1,11 @@
 package com.orbit.Orbit.web;
 
+import com.orbit.Orbit.dto.CommentResponse;
 import com.orbit.Orbit.dto.InspectionRequest;
 import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.dto.RoboflowResponse;
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.InspectionComment;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
@@ -160,5 +162,28 @@ public class InspectionController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
+    }
+
+
+    //Comments
+    @GetMapping("/api/v1/inspections/{inspectionNumber}/comments")
+    public ResponseEntity<List<CommentResponse>> getComments(@PathVariable String inspectionNumber) {
+        return ResponseEntity.ok(inspectionService.getComments(inspectionNumber));
+    }
+
+    @PostMapping("/api/v1/inspections/{inspectionNumber}/comments")
+    public ResponseEntity<InspectionComment> addComment(
+            @PathVariable String inspectionNumber,
+            @RequestBody InspectionComment request) {
+
+        InspectionComment saved = inspectionService.addComment(
+                inspectionNumber,
+                request.getTopic(),
+                request.getComment(),
+                request.getAuthor()
+
+        );
+
+        return ResponseEntity.ok(saved);
     }
 }

@@ -1,9 +1,12 @@
 package com.orbit.Orbit.service;
 
+import com.orbit.Orbit.dto.CommentResponse;
 import com.orbit.Orbit.dto.InspectionRequest;
 import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
+import com.orbit.Orbit.model.InspectionComment;
 import com.orbit.Orbit.model.Transformer;
+import com.orbit.Orbit.repo.InspectionCommentRepo;
 import com.orbit.Orbit.repo.InspectionRepo;
 import com.orbit.Orbit.repo.TransformerRepo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,15 +39,17 @@ public class InspectionService {
     private ObjectMapper objectMapper;
 
     private final InspectionRepo inspectionRepository;
+    private final InspectionCommentRepo inspectionCommentRepository;
 
     private final TransformerService transformerService;
 
     private final RoboflowService roboflowService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService) {
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository) {
         this.inspectionRepository = inspectionRepository;
         this.transformerService = transformerService;
         this.roboflowService = roboflowService;
+        this.inspectionCommentRepository = inspectionCommentRepository;
     }
 
     public Inspection save(InspectionRequest req){
@@ -213,6 +218,28 @@ public class InspectionService {
         Path path = Path.of("uploads", url.replace("/files/", ""));
         Resource resource = new org.springframework.core.io.PathResource(path);
         return resource;
+    }
+
+    //Comments
+    public InspectionComment addComment(String inspectionNumber,String topic, String comment, String author) {
+        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+                .orElseThrow(() -> new RuntimeException("Inspection not found"));
+
+        InspectionComment newComment = new InspectionComment();
+        newComment.setInspection(inspection);
+        newComment.setTopic(topic);
+        newComment.setComment(comment);
+        newComment.setAuthor(author);
+
+        return inspectionCommentRepository.save(newComment);
+    }
+
+    public List<CommentResponse> getComments(String inspectionNumber) {
+        return inspectionCommentRepository
+                .findByInspection_InspectionNumberOrderByCreatedAtDesc(inspectionNumber)
+                .stream()
+                .map(CommentResponse::new)
+                .toList();
     }
 
 

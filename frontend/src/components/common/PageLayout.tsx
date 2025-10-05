@@ -1,6 +1,7 @@
 import React from "react";
 import { Bell, User } from "lucide-react";
 
+
 interface PageLayoutProps {
   title: string;
   children: React.ReactNode;
@@ -20,7 +21,7 @@ const PageLayout: React.FC<PageLayoutProps> = ({ title, children }) => {
         <div className="flex items-center space-x-6">
           {/* Notification Bell */}
           <button className="relative p-2 rounded-full hover:bg-gray-200 transition-colors">
-            <Bell size={22} className="text-gray-600" />
+            <Bell size={22} className="text-white" />
             <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full ring-2 ring-white"></span>
           </button>
 
@@ -34,7 +35,7 @@ const PageLayout: React.FC<PageLayoutProps> = ({ title, children }) => {
                 Shaveen Herath
               </p>
               <p className="text-xs text-gray-500">
-                herathshaheen@gmail.com
+                herathshaveen@gmail.com
               </p>
             </div>
           </div>
