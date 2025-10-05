@@ -158,9 +158,9 @@ public class InspectionService {
 
 
 
-    public boolean delete(String transformerNumber){
-        if (!inspectionRepository.existsById(transformerNumber)) return false;
-        inspectionRepository.deleteById(transformerNumber);
+    public boolean delete(String inspectionNumber){
+        if (!inspectionRepository.existsById(inspectionNumber)) return false;
+        inspectionRepository.deleteById(inspectionNumber);
         return true;
     }
 

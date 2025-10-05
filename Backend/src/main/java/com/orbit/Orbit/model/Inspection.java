@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "inspection")
@@ -25,6 +27,9 @@ public class Inspection {
     @ManyToOne
     @JoinColumn(name = "transformer_number", referencedColumnName = "transformerNumber")
     private Transformer transformer;
+
+    @OneToMany(mappedBy = "inspection", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<InspectionComment> comments = new ArrayList<>();
 
     public Inspection() {
     }
