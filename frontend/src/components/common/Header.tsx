@@ -21,7 +21,7 @@ const Header: React.FC<HeaderProps> = ({ title, breadcrumb }) => {
             <Bell size={24} />
             <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
           </button>
-          <button className="text-gray-600 hover:text-gray-800">
+          <button className="text-gray-600 hover:text-white">
             <Settings size={24} />
           </button>
         </div>

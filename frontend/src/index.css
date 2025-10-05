@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* ↓ Add this just below the Tailwind import */
+html {
+  font-size: 14px;  /* makes everything ~12–13% smaller */
+}
+
+@media (min-width: 1280px) {
+  html {
+    font-size: 10px; /* slightly larger on big screens */
+  }
+}
+
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -7,7 +19,7 @@
 
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  background-color: #060404;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -17,7 +29,7 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: #000000;
   text-decoration: inherit;
 }
 a:hover {
@@ -25,6 +37,7 @@ a:hover {
 }
 
 body {
+  color: #1f2937; /* Tailwind gray-800 */
   margin: 0;
   /* Removed the centering flex styles */
   min-width: 320px;
@@ -48,32 +61,57 @@ h1 {
 
 button {
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  border: 1px solid #d1d5db;       /* soft gray border */
+  padding: 0.6em 1em;
+  font-size: 0.95em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  color: #374151;                   /* dark gray text */
+  background-color: #f3f4f6;        /* light gray background */
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all 0.2s ease-in-out;
 }
+
 button:hover {
-  border-color: #646cff;
+  background-color: #e5e7eb;        /* slightly darker on hover */
+  border-color: #9ca3af;
 }
+
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid #60a5fa;       /* subtle blue focus ring */
+  outline-offset: 2px;
 }
+
 
 @media (prefers-color-scheme: light) {
   :root {
-    color: #213547;
+    color: #e8f4ff;
     background-color: #ffffff;
   }
   a:hover {
-    color: #747bff;
+    color: #dedfff;
   }
   button {
     background-color: #f9f9f9;
   }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e8f4ff;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #dedfff;
+  }
+  button {
+    color: #f9fafb;
+    background-color: #374151;
+    border-color: #4b5563;
+  }
+  button:hover {
+    background-color: #4b5563;
+  }
+
 }

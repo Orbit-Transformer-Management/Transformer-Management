@@ -170,7 +170,8 @@ const TransformersListPage = () => {
             )}
 
             <div className="flex flex-col h-full space-y-8">
-                <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-3xl border border-amber-200 shadow-xl overflow-hidden">
+                <div className="bg-gray-50 rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
+
                     <div className="relative p-8">
                         <div className="absolute inset-0 opacity-10">
                             <div className="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-amber-400 to-orange-400 rounded-full blur-3xl"></div>
@@ -180,11 +181,13 @@ const TransformersListPage = () => {
                         <div className="relative z-10 flex justify-between items-center">
                             <div className="flex items-center space-x-6">
                                 <button
-                                    onClick={() => navigate(-1)}
-                                    className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
+                                onClick={() => navigate(-1)}
+                                className="px-4 py-2 bg-white text-black rounded-xl text-lg font-semibold border border-gray-300 hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
                                 >
-                                    <ChevronLeft size={24} className="text-white" />
+                                <ChevronLeft size={22} className="text-white" />
                                 </button>
+
+
                                 <div className="flex items-center space-x-4">
                                     <div className="p-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg">
                                         <Zap size={32} className="text-white" />

@@ -102,7 +102,8 @@ const DashboardPage = () => {
       <div className="flex flex-col h-full space-y-8">
 
         {/* Enhanced Header */}
-        <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-3xl border border-amber-200 shadow-xl overflow-hidden">
+        <div className="bg-gray-50 rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
+
           <div className="relative p-8">
             {/* Background Pattern */}
             <div className="absolute inset-0 opacity-10">

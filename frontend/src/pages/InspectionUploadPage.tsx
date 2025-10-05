@@ -369,7 +369,10 @@ const InspectionUploadPage = () => {
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-lg relative">
-      <h4 className="text-lg font-semibold mb-2">{type === "thermal" ? "Thermal" : "Baseline"}</h4>
+      <h4 className="text-lg font-semibold text-gray-800 mb-2">
+        {type === "thermal" ? "Thermal Image" : "Baseline Image"}
+      </h4>
+
 
       <div className="relative inline-block">
         <img
@@ -437,7 +440,7 @@ const InspectionUploadPage = () => {
         </button>
         <div>
           <h2 className="text-2xl font-bold text-gray-800">
-            Upload Images for Inspection {inspectionNo}
+            Transformer Inspection No {inspectionNo}
           </h2>
           {transformerNo && <p className="text-gray-500">Associated Transformer: {transformerNo}</p>}
         </div>

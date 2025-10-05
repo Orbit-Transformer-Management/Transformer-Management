@@ -194,7 +194,8 @@ const TransformerInspectionsPage = () => {
       )}
 
       {/* Enhanced Header Section */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-3xl border border-blue-200 shadow-xl overflow-hidden">
+      <div className="bg-gray-50 rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
+
         <div className="relative p-8">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
