@@ -228,13 +228,18 @@ const TransformerInspectionsPage = () => {
               </div>
             </div>
 
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 text-white px-8 py-4 rounded-2xl hover:from-blue-600 hover:via-indigo-600 hover:to-purple-600 text-lg font-bold shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1"
-            >
-              <Plus size={24} className="mr-3" />
-              <span>Add Inspection</span>
-            </button>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 
+                      text-white px-8 py-4 rounded-2xl 
+                      hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
+                      text-lg font-bold shadow-2xl 
+                      transition-all duration-300 transform hover:scale-105 hover:-translate-y-1"
+          >
+            <Plus size={24} className="mr-3" />
+            <span>Add Inspection</span>
+          </button>
+
           </div>
         </div>
       </div>

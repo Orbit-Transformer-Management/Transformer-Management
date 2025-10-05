@@ -263,13 +263,17 @@ const InspectionsPage: React.FC = () => {
                                     onClick={() => navigate('/transformers')}
                                     className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
                                 >
-                                    <Zap size={18} />
+                                    <Zap size={20} />
                                     <span>Transformers</span>
                                 </button>
                                 <button 
-                                    className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl shadow-lg text-lg font-bold transition-all duration-300 flex items-center space-x-2"
+                                    className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 text-white 
+                                                px-4 py-2 rounded-xl 
+                                                hover:from-gray-600 hover:to-gray-800 
+                                                text-sm font-bold transition-all duration-300 
+                                                shadow-lg hover:shadow-xl transform hover:scale-105"
                                 >
-                                    <Activity size={18} />
+                                    <Activity size={20} />
                                     <span>Inspections</span>
                                 </button>
                             </div>
