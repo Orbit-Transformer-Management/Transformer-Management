@@ -4,7 +4,9 @@ Orbit is a web-based system designed to **digitize and streamline routine therma
 
 ---
 
-## 📌 Current Implementation
+## 📌 Current Implementation (Phase 2)
+
+We have completed **Phase 2 – Automated Fault Detection & Inspection Comments**, which introduces AI-powered analysis and feedback management, enhancing the system’s intelligence and usability.
 
 ### 🔍 Roboflow AI Integration
 
@@ -37,17 +39,19 @@ Inspectors can add comments and observations on each inspection. Each comment in
 
 Comments are stored in a dedicated table linked to the inspection. Admins can view and manage all past discussions on a transformer’s inspection history.
 
-### ⚙️ Transformer and Baseline Image Management
+---
 
-This module lays the foundation for managing transformers and baseline images.
+## 🗂️ Previous Implementation (Phase 1)
 
-#### Admin Interface for Transformer Management
+**Phase 1 – Transformer and Baseline Image Management** laid the foundation for managing transformers and baseline images.
+
+### Admin Interface for Transformer Management
 
 * Add new transformer records
 * View and edit existing transformer records
 * Delete transformer records if required
 
-#### Thermal Image Upload and Tagging
+### Thermal Image Upload and Tagging
 
 * Upload **thermal images** linked to specific transformers
 * Support for two image types:
@@ -60,14 +64,45 @@ This module lays the foundation for managing transformers and baseline images.
   * Image type (Baseline / Maintenance)
   * Uploader (admin ID or name)
 
-#### Categorization by Environmental Conditions
+### Categorization by Environmental Conditions
 
 * While uploading baseline images, users must select environmental conditions:
 
   * Sunny
   * Cloudy
   * Rainy
-* Images are stored and searchable by these conditions
+* Images are stored and searchable by these conditions.
+
+---
+
+## 🧩 API Endpoints
+
+### Phase 1 – Transformer & Inspection Management
+
+| Method | Endpoint                                             | Description                                   |
+| ------ | ---------------------------------------------------- | --------------------------------------------- |
+| GET    | /api/v1/transformers                                 | Get all transformers                          |
+| GET    | /api/v1/transformers/{transformerNumber}             | Get a transformer by transformer number       |
+| GET    | /api/v1/transformers/{transformerNumber}/image       | Get the **baseline image** of a transformer   |
+| POST   | /api/v1/transformers                                 | Create a new transformer                      |
+| POST   | /api/v1/transformers/{transformerNumber}/image       | Upload **baseline image** for transformer     |
+| DELETE | /api/v1/transformers/{transformerNumber}             | Delete a transformer by transformer number    |
+| GET    | /api/v1/inspections                                  | Get all inspections                           |
+| GET    | /api/v1/inspections/{inspectionNumber}               | Get an inspection by inspection number        |
+| GET    | /api/v1/transformers/{transformerNumber}/inspections | Get all inspections of a specific transformer |
+| GET    | /api/v1/inspections/{inspectionNumber}/image         | Get inspection image                          |
+| POST   | /api/v1/inspections                                  | Create a new inspection                       |
+| POST   | /api/v1/inspections/{inspectionNumber}/image         | Upload inspection image                       |
+| DELETE | /api/v1/inspections/{inspectionNumber}               | Delete an inspection                          |
+
+### Phase 2 – AI Integration & Comment System
+
+| Method | Endpoint                                       | Description                                     |
+| ------ | ---------------------------------------------- | ----------------------------------------------- |
+| GET    | /api/v1/inspections/{inspectionNumber}/comment | Retrieve all comments for a specific inspection |
+| POST   | /api/v1/inspections/{inspectionNumber}/comment | Add a new comment to a specific inspection      |
+| GET    | /api/v1/inspections/{inspectionNumber}/analyze | Retrieve AI model predictions for an inspection |
+| PUT    | /api/v1/inspections/{inspectionNumber}/analyze | Update AI model predictions for an inspection   |
 
 ---
 
@@ -95,14 +130,26 @@ Make sure the following are installed:
 
 ### Frontend Setup (React + Vite + Tailwind)
 
+1. Go to frontend folder:
+
 ```bash
 git clone https://github.com/Orbit-Transformer-Management/Transformer-Management
 cd frontend
+```
+
+2. Install dependencies:
+
+```bash
 npm install
+```
+
+3. Run development server:
+
+```bash
 npm run dev
 ```
 
-Open the app in browser: [http://localhost:5173](http://localhost:5173)
+4. Open the app in browser: [http://localhost:5173](http://localhost:5173)
 
 ### Database Setup
 
@@ -113,48 +160,15 @@ CREATE DATABASE transformer_db;
 ```
 
 2. Spring Boot will auto-generate tables (using JPA).
-3. If needed, insert sample data manually via pgAdmin or SQL scripts.
-
----
-
-## 🧩 API Endpoints
-
-### Transformer APIs
-
-| Method | Endpoint                                       | Description                                 |
-| ------ | ---------------------------------------------- | ------------------------------------------- |
-| GET    | /api/v1/transformers                           | Get all transformers                        |
-| GET    | /api/v1/transformers/{transformerNumber}       | Get a transformer by transformer number     |
-| GET    | /api/v1/transformers/{transformerNumber}/image | Get the **baseline image** of a transformer |
-| POST   | /api/v1/transformers                           | Create a new transformer                    |
-| POST   | /api/v1/transformers/{transformerNumber}/image | Upload **baseline image** for transformer   |
-| DELETE | /api/v1/transformers/{transformerNumber}       | Delete a transformer by transformer number  |
-
----
-
-### Inspection APIs
-
-| Method | Endpoint                                             | Description                                             |
-| ------ | ---------------------------------------------------- | ------------------------------------------------------- |
-| GET    | /api/v1/inspections                                  | Get all inspections                                     |
-| GET    | /api/v1/inspections/{inspectionNumber}               | Get an inspection by inspection number                  |
-| GET    | /api/v1/transformers/{transformerNumber}/inspections | Get all inspections of a specific transformer           |
-| GET    | /api/v1/inspections/{inspectionNumber}/image         | Get inspection image                                    |
-| POST   | /api/v1/inspections                                  | Create a new inspection                                 |
-| POST   | /api/v1/inspections/{inspectionNumber}/image         | Upload inspection image                                 |
-| DELETE | /api/v1/inspections/{inspectionNumber}               | Delete an inspection                                    |
-| GET    | /api/v1/inspections/{inspectionNumber}/comment       | Retrieve all comments for a specific inspection (new)   |
-| POST   | /api/v1/inspections/{inspectionNumber}/comment       | Add a new comment to a specific inspection (new)        |
-| GET    | /api/v1/inspections/{inspectionNumber}/analyze       | Retrieve AI model predictions for an inspection (new)   |
-| PUT    | /api/v1/inspections/{inspectionNumber}/analyze       | Update or modify AI predictions for an inspection (new) |
+3. If needed, you can insert sample data manually via pgAdmin or SQL scripts.
 
 ---
 
 ## 🚧 Known Limitations / Future Work
 
 * User authentication/authorization not yet implemented (anyone can access endpoints).
-* No user profile or role management.
-* Roboflow AI model cannot be retrained dynamically using user feedback.
+* No user profile or role management is available.
+* The Roboflow AI model cannot be retrained dynamically using user inputs or feedback.
 * Fault detection results rely solely on the pre-trained model without continuous learning capability.
 
 ---
