@@ -186,4 +186,27 @@ public class InspectionController {
 
         return ResponseEntity.ok(saved);
     }
+
+    @PutMapping("/api/v1/inspections/comments/{commentId}")
+    public ResponseEntity<InspectionComment> updateComment(
+            @PathVariable Long commentId,
+            @RequestBody InspectionComment updatedRequest) {
+
+        InspectionComment updated = inspectionService.updateComment(
+                commentId,
+                updatedRequest.getTopic(),
+                updatedRequest.getComment(),
+                updatedRequest.getAuthor()
+        );
+
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/api/v1/inspections/comments/{commentId}")
+    public ResponseEntity<Void> deleteComment(
+            @PathVariable Long commentId) {
+
+        inspectionService.deleteComment(commentId);
+        return ResponseEntity.noContent().build(); // returns 204 No Content
+    }
 }

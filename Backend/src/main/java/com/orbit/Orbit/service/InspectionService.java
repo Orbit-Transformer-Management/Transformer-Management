@@ -28,6 +28,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 
@@ -240,6 +241,34 @@ public class InspectionService {
                 .stream()
                 .map(CommentResponse::new)
                 .toList();
+    }
+
+    public InspectionComment updateComment(Long commentId, String topic, String comment, String author) {
+
+
+        // Find the existing comment
+        InspectionComment existingComment = inspectionCommentRepository.findById(commentId)
+                .orElseThrow(() -> new RuntimeException("Comment not found"));
+
+
+        // Update fields
+        existingComment.setTopic(topic);
+        existingComment.setComment(comment);
+        existingComment.setAuthor(author);
+        existingComment.setCreatedAt(LocalDateTime.now()); // optional if you have this field
+
+        // Save and return
+        return inspectionCommentRepository.save(existingComment);
+    }
+
+    public void deleteComment(Long commentId) {
+
+
+        // Find the comment
+        InspectionComment existingComment = inspectionCommentRepository.findById(commentId)
+                .orElseThrow(() -> new RuntimeException("Comment not found"));
+        // Perform delete
+        inspectionCommentRepository.delete(existingComment);
     }
 
 

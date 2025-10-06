@@ -243,12 +243,18 @@ const InspectionsPage: React.FC = () => {
                         
                         <div className="relative z-10 flex justify-between items-center">
                             <div className="flex items-center space-x-6">
-                            <button
-                            onClick={() => navigate(-1)}
-                            className="px-4 py-2 bg-white text-black rounded-xl text-lg font-semibold border border-gray-300 hover:bg-gray-50 transition-all duration-200 flex items-center space-x-2"
-                            >
-                            <ChevronLeft size={22} className="text-white" />
-                            </button>
+                        <button
+                        onClick={() => navigate(-1)}
+                        className="px-4 py-2 rounded-xl text-lg font-semibold border transition-all duration-200 
+                                    flex items-center space-x-2
+                                    bg-white text-black border-gray-300 hover:bg-gray-50
+                                    dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700
+                                    [&_svg]:stroke-black dark:[&_svg]:stroke-white"
+                        >
+                        <ChevronLeft size={22} />
+                        </button>
+
+
 
                                 <div className="flex items-center space-x-4">
                                     <div className="p-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg">
@@ -266,37 +272,47 @@ const InspectionsPage: React.FC = () => {
                                 
                                 <button
                                 onClick={() => setIsModalOpen(true)}
-                                className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 text-white 
-                                            px-8 py-4 rounded-2xl 
+                                className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 
+                                            text-white px-8 py-4 rounded-2xl 
                                             hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
                                             text-lg font-bold shadow-2xl 
-                                            transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 ml-8"
+                                            transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 ml-8
+                                            [&_*]:text-white [&_svg]:stroke-white"
                                 >
                                 <Plus size={24} className="mr-3" />
                                 <span>Add Inspection</span>
                                 </button>
 
+
                             </div>
                             
                             {/* Enhanced Tab Navigation */}
                             <div className="flex items-center bg-white/90 p-2 rounded-2xl shadow-lg border border-amber-200 backdrop-blur-sm">
-                                <button
-                                    onClick={() => navigate('/transformers')}
-                                    className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 text-white rounded-xl text-lg font-semibold hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 border border-blue-400/20"
-                                >
-                                    <Zap size={20} />
-                                    <span>Transformers</span>
-                                </button>
-                                <button 
-                                    className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 text-white 
-                                                px-4 py-2 rounded-xl 
-                                                hover:from-gray-600 hover:to-gray-800 
-                                                text-sm font-bold transition-all duration-300 
-                                                shadow-lg hover:shadow-xl transform hover:scale-105"
-                                >
-                                    <Activity size={20} />
-                                    <span>Inspections</span>
-                                </button>
+                            <button
+                            onClick={() => navigate('/transformers')}
+                            className="px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 
+                                        text-white rounded-xl text-lg font-semibold 
+                                        hover:from-blue-600 hover:via-indigo-600 hover:to-blue-700 
+                                        transition-all duration-300 flex items-center space-x-2 
+                                        shadow-lg hover:shadow-xl transform hover:scale-105 hover:-translate-y-1 
+                                        border border-blue-400/20
+                                        [&_*]:text-white [&_svg]:stroke-white"
+                            >
+                            <Zap size={20} />
+                            <span>Transformers</span>
+                            </button>
+                            <button 
+                            className="inline-flex items-center bg-gradient-to-r from-gray-500 to-gray-700 
+                                        text-white px-4 py-2 rounded-xl 
+                                        hover:from-gray-600 hover:to-gray-800 
+                                        text-sm font-bold transition-all duration-300 
+                                        shadow-lg hover:shadow-xl transform hover:scale-105
+                                        [&_*]:text-white [&_svg]:stroke-white"
+                            >
+                            <Activity size={20} />
+                            <span>Inspections</span>
+                            </button>
+
                             </div>
                         </div>
                     </div>
@@ -451,27 +467,44 @@ const InspectionsPage: React.FC = () => {
                                             </td>
                                             <td className="p-6 text-center">
                                                 <div className="flex items-center justify-center space-x-3">
-                                                    <button 
-                                                        onClick={() => navigate(`/inspections/${insp.inspectionNo}/upload`)}
-                                                        className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                    >
-                                                        <Eye size={16} className="mr-2" />
-                                                        View
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleEdit(insp)}
-                                                        className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-4 py-2 rounded-xl hover:from-emerald-600 hover:to-teal-600 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                    >
-                                                        <Edit size={16} className="mr-2" />
-                                                        Edit
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => showDeleteConfirmation(insp)}
-                                                        className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-xl hover:from-red-600 hover:to-red-700 text-sm font-bold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                                                    >
-                                                        <Trash2 size={16} className="mr-2" />
-                                                        Delete
-                                                    </button>
+                                            <button 
+                                            onClick={() => navigate(`/inspections/${insp.inspectionNo}/upload`)}
+                                            className="inline-flex items-center bg-gradient-to-r from-blue-500 to-indigo-500 
+                                                        text-white px-4 py-2 rounded-xl 
+                                                        hover:from-blue-600 hover:to-indigo-600 
+                                                        text-sm font-bold transition-all duration-300 
+                                                        shadow-lg hover:shadow-xl transform hover:scale-105
+                                                        [&_*]:text-white [&_svg]:stroke-white"
+                                            >
+                                            <Eye size={16} className="mr-2" />
+                                            <span>View</span>
+                                            </button>
+                                            <button 
+                                            onClick={() => handleEdit(insp)}
+                                            className="inline-flex items-center bg-gradient-to-r from-emerald-500 to-teal-500 
+                                                        text-white px-4 py-2 rounded-xl 
+                                                        hover:from-emerald-600 hover:to-teal-600 
+                                                        text-sm font-bold transition-all duration-300 
+                                                        shadow-lg hover:shadow-xl transform hover:scale-105
+                                                        [&_*]:text-white [&_svg]:stroke-white"
+                                            >
+                                            <Edit size={16} className="mr-2" />
+                                            <span>Edit</span>
+                                            </button>
+
+                                            <button 
+                                            onClick={() => showDeleteConfirmation(insp)}
+                                            className="inline-flex items-center bg-gradient-to-r from-red-500 to-red-600 
+                                                        text-white px-4 py-2 rounded-xl 
+                                                        hover:from-red-600 hover:to-red-700 
+                                                        text-sm font-bold transition-all duration-300 
+                                                        shadow-lg hover:shadow-xl transform hover:scale-105
+                                                        [&_*]:text-white [&_svg]:stroke-white"
+                                            >
+                                            <Trash2 size={16} className="mr-2" />
+                                            <span>Delete</span>
+                                            </button>
+
                                                 </div>
                                             </td>
                                         </tr>
