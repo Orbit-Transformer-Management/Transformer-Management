@@ -286,7 +286,7 @@ const TransformerInspectionsPage = () => {
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold text-gray-800">
-                    Transformer No: {transformerInfo?.transformerNumber}
+                    Transformer No - {transformerInfo?.transformerNumber}
                   </h1>
                   <p className="text-2xl mt-2 font-medium text-gray-700 flex items-center">
                     <MapPin size={22} className="mr-2" />

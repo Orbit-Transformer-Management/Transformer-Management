@@ -673,7 +673,7 @@ const InspectionUploadPage = () => {
 
             <h3 id="upload-title" className="text-xl font-bold tracking-tight">
               {isPredicting
-                ? `Running ${uploadProgress.type} Prediction…`
+                ? `Uploading ${uploadProgress.type} Image Done`
                 : isDoneBaseline
                 ? `Baseline Image Uploading...`
                 : `Uploading ${uploadProgress.type} Image…`}
@@ -938,8 +938,6 @@ const InspectionUploadPage = () => {
 
   const deleteComment = async (commentId: string) => {
     if (!inspectionNo || !commentId) return;
-    const ok = window.confirm("Delete this comment?");
-    if (!ok) return;
 
     setDeletingId(commentId);
     const prevComments = comments;
@@ -1004,11 +1002,11 @@ const InspectionUploadPage = () => {
         </button>
         <div>
           <h2 className="text-4xl font-bold text-gray-800">
-            Transformer Inspection No {inspectionNo}
+            Transformer Inspection No - {inspectionNo}
           </h2>
           {transformerNo && (
             <p className="text-3xl font-bold text-gray-500">
-              Associated Transformer No : {transformerNo}
+              Transformer No - {transformerNo}
             </p>
           )}
         </div>
