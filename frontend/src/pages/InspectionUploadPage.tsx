@@ -651,32 +651,132 @@ const InspectionUploadPage = () => {
   // === Upload Progress Modal ===
   const ProgressModal = () => {
     if (!uploadProgress.isVisible) return null;
+
+    const isBaseline = uploadProgress.type?.toLowerCase() === 'baseline';
+    const isPredicting = uploadProgress.progress >= 100 && !isBaseline; // only for thermal
+    const isDoneBaseline = uploadProgress.progress >= 100 && isBaseline;
+
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        aria-modal="true"
+        role="dialog"
+        aria-labelledby="upload-title"
+        aria-describedby="upload-desc"
+      >
+        <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-[min(92vw,560px)]">
+          {/* Header */}
           <div className="text-center">
-            <Upload className="mx-auto mb-4 text-blue-600" size={48} />
-            <h3 className="text-xl font-bold mb-2">
-              Uploading {uploadProgress.type} Image…
-            </h3>
-            <p className="text-gray-600 mb-4 truncate">{uploadProgress.fileName}</p>
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-              <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress.progress}%` }}
-              />
+            <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <Upload className="text-blue-600" size={28} />
             </div>
-            <p className="text-sm text-gray-600">
-              {uploadProgress.progress}% completed
+
+            <h3 id="upload-title" className="text-xl font-bold tracking-tight">
+              {isPredicting
+                ? `Running ${uploadProgress.type} Prediction…`
+                : isDoneBaseline
+                ? `Baseline Image Uploading...`
+                : `Uploading ${uploadProgress.type} Image…`}
+            </h3>
+
+            <p id="upload-desc" className="text-gray-600 mt-1 mb-4 truncate">
+              {uploadProgress.fileName}
             </p>
-            {uploadProgress.progress === 100 && (
-              <div className="flex items-center justify-center mt-4 text-green-600">
-                <Check size={20} className="mr-2" />
-                <span className="font-semibold">Upload Complete!</span>
+          </div>
+
+          {/* Stepper: show 1 step for baseline, 2 steps for thermal */}
+          {!isBaseline ? (
+            <div className="flex items-center justify-center gap-3 mb-6">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm
+                  ${!isPredicting ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'}`}>
+                <span className="inline-block h-2 w-2 rounded-full bg-current"></span>
+                Uploading
               </div>
-            )}
+              <div className="h-px w-8 bg-gray-200" />
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm
+                  ${isPredicting ? 'bg-emerald-600 text-white' : 'bg-gray-50 text-gray-500'}`}>
+                <span className={`inline-block h-2 w-2 rounded-full ${isPredicting ? 'bg-white' : 'bg-current'}`}></span>
+                Prediction
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-blue-600 text-white">
+                <span className="inline-block h-2 w-2 rounded-full bg-white"></span>
+                Uploading
+              </div>
+            </div>
+          )}
+
+          {/* Progress / Status */}
+          {!isPredicting ? (
+            <div>
+              <div className="w-full bg-gray-200/80 rounded-full h-3 overflow-hidden">
+                <div
+                  className="h-3 rounded-full transition-all duration-300
+                            bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"
+                  style={{ width: `${Math.min(uploadProgress.progress, 100)}%` }}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.min(uploadProgress.progress, 100)}
+                />
+              </div>
+
+              {/* Labels change when baseline hits 100% */}
+              <div className="mt-2 flex items-center justify-between text-sm text-gray-600">
+                <span>
+                  {isDoneBaseline ? 'Upload complete' : `${uploadProgress.progress}% completed`}
+                </span>
+                <span className="tabular-nums">{uploadProgress.progress}/100</span>
+              </div>
+
+              {/* Baseline "done" row with check */}
+              {isDoneBaseline && (
+                <div className="flex items-center justify-center mt-4 text-emerald-600" aria-live="polite">
+                  <Check size={18} className="mr-2" />
+                  <span className="font-semibold">Baseline image uploaded successfully.</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Thermal only: indeterminate prediction bar and spinner
+            <div>
+              <div className="w-full bg-gray-200/80 rounded-full h-3 overflow-hidden relative">
+                <div
+                  className="absolute inset-y-0 left-0 w-1/3 h-full rounded-full
+                            bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500
+                            animate-[slide_1.4s_ease-in-out_infinite]"
+                />
+              </div>
+
+              <div className="mt-4 flex items-center justify-center gap-2 text-emerald-700" aria-live="polite">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+                <span className="font-semibold">Prediction in progress…</span>
+              </div>
+
+              <p className="mt-2 text-center text-sm text-gray-500">
+                Analyzing patterns and generating results.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-400">Do not close this window until the process completes.</p>
           </div>
         </div>
+
+        {/* Keyframes for the indeterminate bar */}
+        <style>{`
+          @keyframes slide {
+            0%   { transform: translateX(-120%); }
+            50%  { transform: translateX(20%); }
+            100% { transform: translateX(120%); }
+          }
+        `}</style>
       </div>
     );
   };
