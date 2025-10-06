@@ -916,7 +916,7 @@ const InspectionUploadPage = () => {
 
     try {
       await axios.put(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/comments/${commentId}`,
+        `http://localhost:8080/api/v1/inspections/comments/${commentId}`,
         { topic: newTopic, comment: newText }
       );
     } catch {
@@ -948,7 +948,7 @@ const InspectionUploadPage = () => {
 
     try {
       await axios.delete(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/comments/${commentId}`
+        `http://localhost:8080/api/v1/inspections/comments/${commentId}`
       );
     } catch {
       try {
