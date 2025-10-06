@@ -19,11 +19,15 @@ const PageLayout: React.FC<PageLayoutProps> = ({ title, children }) => {
         </h1>
 
         <div className="flex items-center space-x-6">
-          {/* Notification Bell */}
-          <button className="relative p-2 rounded-full hover:bg-gray-200 transition-colors">
-            <Bell size={22} className="text-white" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-          </button>
+        {/* Notification Bell */}
+        <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Bell
+            size={22}
+            className="text-black dark:text-white"
+          />
+          <span className="absolute top-1 right-1 h-2 w-2 bg-black dark:bg-white rounded-full ring-2 ring-white dark:ring-gray-900"></span>
+        </button>
+
 
           {/* User Profile */}
           <div className="flex items-center space-x-3 bg-white px-3 py-2 rounded-xl shadow-sm hover:shadow-md transition-shadow">

@@ -15,6 +15,11 @@ import {
   Send,
   User as UserIcon,
   Clock,
+  Edit3,
+  X,
+  Trash2,
+  Loader2,
+  Save,
 } from "lucide-react";
 import axios from "axios";
 
@@ -69,6 +74,9 @@ interface ImageDisplayCardProps {
   type: ImgType;
   predictions?: Prediction[]; // only for thermal
   onReuploadThermal?: () => void;
+  onDeleteBaseline?: () => void;
+  onDeleteThermal?: () => void;
+  onReuploadBaseline?: () => void; // NEW
 }
 
 const ImageDisplayCard = React.memo(function ImageDisplayCard({
@@ -76,24 +84,21 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   type,
   predictions = [],
   onReuploadThermal,
+  onReuploadBaseline, // NEW
 }: ImageDisplayCardProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // natural image size
   const naturalW = useRef(0);
   const naturalH = useRef(0);
 
-  // transform state
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
 
-  // dragging
   const dragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const translateStart = useRef({ x: 0, y: 0 });
 
-  // mask a right-side legend baked into some photos (purely visual)
   const maskRightPx = 0;
 
   const centerAtFit = () => {
@@ -117,20 +122,16 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
     centerAtFit();
   };
 
-  // refit on URL change or window resize
   useEffect(() => {
     centerAtFit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [image.url]);
 
   useEffect(() => {
     const onResize = () => centerAtFit();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // zoom with wheel (block page scroll)
   const zoomRef = useRef(zoom);
   useEffect(() => {
     zoomRef.current = zoom;
@@ -161,7 +162,6 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
     return () => el.removeEventListener("wheel", wheelListener);
   }, []);
 
-  // pan
   const onMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
     dragging.current = true;
     dragStart.current = { x: e.clientX, y: e.clientY };
@@ -186,7 +186,7 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
     <div className="bg-white p-4 rounded-xl shadow-lg relative">
       {/* Header + controls */}
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-2xl font-semibold text-black-800">
+        <h4 className="text-3xl font-semibold text-black-800">
           {type === "thermal" ? "Maintenance Image" : "Baseline Image"}
         </h4>
 
@@ -217,12 +217,31 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
           </button>
 
           {type === "thermal" && (
-            <button
-              onClick={onReuploadThermal}
-              className="ml-2 px-6 py-1 rounded-md border text-lg bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Reupload
-            </button>
+            <>
+              <button
+                onClick={onReuploadThermal}
+                className="ml-2 px-6 py-1 rounded-md border text-xl bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Re-upload
+              </button>
+ 
+              
+            </>
+          )}
+
+          {type === "baseline" && (
+            <>
+              {onReuploadBaseline && (
+                <button
+                  onClick={onReuploadBaseline}
+                  className="ml-2 px-6 py-1 rounded-md border text-lg bg-green-600 text-white hover:bg-green-700"
+                  title="Reupload baseline image"
+                >
+                  Re-upload
+                </button>
+              )}
+
+            </>
           )}
         </div>
       </div>
@@ -256,14 +275,6 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
               draggable={false}
               onLoad={handleImgLoad}
             />
-
-            {/* Optional mask */}
-            {maskRightPx > 0 && (
-              <div
-                className="absolute top-0 right-0 h-full bg-white"
-                style={{ width: `${maskRightPx}px` }}
-              />
-            )}
 
             {/* Overlays (thermal) */}
             {type === "thermal" &&
@@ -302,7 +313,7 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
         </div>
       </div>
 
-      <p className="mt-2 text-lg text-gray-500">
+      <p className="mt-2 text-xl text-gray-500">
         Scroll to zoom, drag to pan, double-click to fit.
       </p>
     </div>
@@ -312,6 +323,9 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   prev.image.url === next.image.url &&
   prev.type === next.type &&
   prev.onReuploadThermal === next.onReuploadThermal &&
+  prev.onDeleteBaseline === next.onDeleteBaseline &&
+  prev.onDeleteThermal === next.onDeleteThermal &&
+  prev.onReuploadBaseline === next.onReuploadBaseline && // NEW
   prev.predictions === next.predictions
 );
 
@@ -348,6 +362,17 @@ const InspectionUploadPage = () => {
   const [commentTopic, setCommentTopic] = useState("");
   const [commentText, setCommentText] = useState("");
   const [isSavingComment, setIsSavingComment] = useState(false);
+
+  // edit/delete comment UI state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTopic, setEditTopic] = useState("");
+  const [editText, setEditText] = useState("");
+  const [savingEditId, setSavingEditId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // delete image UI state
+  const [isDeletingBaseline, setIsDeletingBaseline] = useState(false);
+  const [isDeletingThermal, setIsDeletingThermal] = useState(false);
 
   // === Predictions ===
   const fetchPredictions = async () => {
@@ -407,7 +432,7 @@ const InspectionUploadPage = () => {
       const normalized: InspectorComment[] = list.map((c: any) => ({
         id: c.id ?? c._id ?? undefined,
         topic: c.topic ?? c.title ?? c.subject ?? "(No topic)",
-        text: c.text ?? c.comment ?? c.body ?? "", // normalize to `text`
+        text: c.text ?? c.comment ?? c.body ?? "",
         author: c.author ?? undefined,
         timestamp: c.timestamp ?? c.createdAt ?? new Date().toISOString(),
       }));
@@ -574,6 +599,55 @@ const InspectionUploadPage = () => {
     }
   };
 
+  // === Delete baseline image ===
+  const handleDeleteBaseline = async () => {
+    if (!transformerNo) return;
+    const ok = window.confirm("Delete the baseline image for this transformer?");
+    if (!ok) return;
+
+    try {
+      setIsDeletingBaseline(true);
+      await axios.delete(
+        `http://localhost:8080/api/v1/transformers/${transformerNo}/image`
+      );
+      setBaselineImage(null);
+    } catch (err) {
+      console.error("Failed to delete baseline image:", err);
+      alert("Failed to delete baseline image.");
+    } finally {
+      setIsDeletingBaseline(false);
+    }
+  };
+
+  // === Delete thermal (maintenance) image ===
+  const handleDeleteThermal = async () => {
+    if (!inspectionNo) return;
+    const ok = window.confirm("Delete the maintenance (thermal) image for this inspection?");
+    if (!ok) return;
+
+    try {
+      setIsDeletingThermal(true);
+      await axios.delete(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/image`
+      );
+      setThermalImage(null);
+      setThermalPredictions([]); // clear overlays
+    } catch (err) {
+      console.error("Failed to delete thermal image:", err);
+      alert("Failed to delete thermal image.");
+    } finally {
+      setIsDeletingThermal(false);
+    }
+  };
+
+  // === Reupload triggers ===
+  const handleReuploadThermal = useCallback(() => {
+    thermalInputRef.current?.click();
+  }, []);
+  const handleReuploadBaseline = useCallback(() => { // NEW
+    baselineInputRef.current?.click();
+  }, []);
+
   // === Upload Progress Modal ===
   const ProgressModal = () => {
     if (!uploadProgress.isVisible) return null;
@@ -651,7 +725,7 @@ const InspectionUploadPage = () => {
     );
   };
 
-  // === Save topic+comment (with fallback) ===
+  // === Comments (create/edit/delete) ===
   const handleSubmitComment = async () => {
     if (!inspectionNo) return;
     const topic = commentTopic.trim();
@@ -679,7 +753,7 @@ const InspectionUploadPage = () => {
     try {
       const res = await axios.post(
         `http://localhost:8080/api/v1/inspections/${inspectionNo}/comments`,
-        { topic, author: "Shaveen", comment: text } // API expects `comment`
+        { topic, author: "Shaveen", comment: text }
       );
       const saved: InspectorComment = {
         id: res.data?.id ?? res.data?._id ?? tempId,
@@ -700,7 +774,6 @@ const InspectionUploadPage = () => {
             comment: `Topic: ${topic}\n${text}`,
           }
         );
-        // keep optimistic entry
       } catch {
         setComments((prev) => prev.filter((c) => c.id !== tempId));
         setCommentTopic(topic);
@@ -712,9 +785,86 @@ const InspectionUploadPage = () => {
     }
   };
 
-  const handleReuploadThermal = useCallback(() => {
-    thermalInputRef.current?.click();
-  }, []);
+  const startEdit = (c: InspectorComment) => {
+    setEditingId(c.id || "");
+    setEditTopic(c.topic);
+    setEditText(c.text);
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditTopic("");
+    setEditText("");
+  };
+
+  const saveEdit = async (commentId: string) => {
+    if (!inspectionNo || !commentId) return;
+    const newTopic = editTopic.trim();
+    const newText = editText.trim();
+    if (!newTopic || !newText) {
+      alert("Please enter both topic and comment.");
+      return;
+    }
+
+    setSavingEditId(commentId);
+
+    const prevComments = comments;
+    setComments((list) =>
+      list.map((c) =>
+        (c.id || "") === commentId ? { ...c, topic: newTopic, text: newText } : c
+      )
+    );
+
+    try {
+      await axios.put(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/comments/${commentId}`,
+        { topic: newTopic, comment: newText }
+      );
+    } catch {
+      try {
+        await axios.post(
+          `http://localhost:8080/api/v1/inspections/${inspectionNo}/update-comment`,
+          { id: commentId, topic: newTopic, comment: newText }
+        );
+      } catch (err) {
+        console.error("❌ Failed to update comment:", err);
+        setComments(prevComments);
+        alert("Failed to update comment.");
+      }
+    } finally {
+      setSavingEditId(null);
+      cancelEdit();
+    }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    if (!inspectionNo || !commentId) return;
+    const ok = window.confirm("Delete this comment?");
+    if (!ok) return;
+
+    setDeletingId(commentId);
+    const prevComments = comments;
+
+    setComments((list) => list.filter((c) => (c.id || "") !== commentId));
+
+    try {
+      await axios.delete(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/comments/${commentId}`
+      );
+    } catch {
+      try {
+        await axios.post(
+          `http://localhost:8080/api/v1/inspections/${inspectionNo}/delete-comment`,
+          { id: commentId }
+        );
+      } catch (err) {
+        console.error("❌ Failed to delete comment:", err);
+        setComments(prevComments);
+        alert("Failed to delete comment.");
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -753,11 +903,13 @@ const InspectionUploadPage = () => {
           <ChevronLeft size={24} />
         </button>
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">
+          <h2 className="text-4xl font-bold text-gray-800">
             Transformer Inspection No {inspectionNo}
           </h2>
           {transformerNo && (
-            <p className="text-xl font-bold text-gray-500">Associated Transformer No : {transformerNo}</p>
+            <p className="text-3xl font-bold text-gray-500">
+              Associated Transformer No : {transformerNo}
+            </p>
           )}
         </div>
       </div>
@@ -765,24 +917,50 @@ const InspectionUploadPage = () => {
       {/* Main grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {baselineImage ? (
-          <ImageDisplayCard image={baselineImage} type="baseline" />
+          <div className="relative">
+            {isDeletingBaseline && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 rounded-xl">
+                <div className="flex items-center gap-2 text-red-700 font-semibold">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Deleting…
+                </div>
+              </div>
+            )}
+            <ImageDisplayCard
+              image={baselineImage}
+              type="baseline"
+              onReuploadBaseline={handleReuploadBaseline} // NEW
+              onDeleteBaseline={handleDeleteBaseline}
+            />
+          </div>
         ) : (
           <ImageUploadCard type="baseline" />
         )}
 
         {thermalImage ? (
-          <ImageDisplayCard
-            image={thermalImage}
-            type="thermal"
-            predictions={thermalPredictions}
-            onReuploadThermal={handleReuploadThermal}
-          />
+          <div className="relative">
+            {isDeletingThermal && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 rounded-xl">
+                <div className="flex items-center gap-2 text-red-700 font-semibold">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Deleting…
+                </div>
+              </div>
+            )}
+            <ImageDisplayCard
+              image={thermalImage}
+              type="thermal"
+              predictions={thermalPredictions}
+              onReuploadThermal={handleReuploadThermal}
+              onDeleteThermal={handleDeleteThermal}
+            />
+          </div>
         ) : (
           <ImageUploadCard type="thermal" />
         )}
       </div>
 
-      {/* Analysis + Comments */}
+      {/* Analysis */}
       <section className="mt-10">
         <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
@@ -834,11 +1012,11 @@ const InspectionUploadPage = () => {
 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
-                          <span className="text-xl font-bold text-gray-900">
+                          <span className="text-2xl font-bold text-gray-900">
                             {pred.tag}
                           </span>
                           <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xl font-semibold
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-2xl font-semibold
                             ${
                               isFault
                                 ? "bg-red-100 text-red-700"
@@ -851,7 +1029,7 @@ const InspectionUploadPage = () => {
                           </span>
                         </div>
 
-                        <p className="mt-1 text-xl text-gray-700">
+                        <p className="mt-1 text-2xl text-gray-700">
                           Confidence: {(pred.confidence * 100).toFixed(1)}%
                         </p>
                       </div>
@@ -871,50 +1049,132 @@ const InspectionUploadPage = () => {
             {/* ---------------------------- Comments block ---------------------------- */}
             <div className="mt-12">
               <h4 className="text-2xl md:text-3xl font-bold text-red-600 mb-6 flex items-center gap-3">
-                {/* <MessageSquareText className="h-8 w-8 text-red-600" /> */}
                 Comments by Inspector
               </h4>
 
               {comments.length > 0 ? (
                 <div className="relative">
-                  {/* timeline spine */}
                   <div className="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-blue-200 via-gray-200 to-transparent hidden sm:block" />
                   <ul className="space-y-4 mb-10">
-                    {comments.map((c, i) => (
-                      <li key={c.id ?? `${c.timestamp}-${i}`} className="relative">
-                        {/* timeline dot */}
-                        <span className="hidden sm:block absolute -left-0.5 top-5 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
+                    {comments.map((c, i) => {
+                      const isEditing = editingId === (c.id || "");
+                      const isSavingThis = savingEditId === (c.id || "");
+                      const isDeletingThis = deletingId === (c.id || "");
+                      return (
+                        <li key={c.id ?? `${c.timestamp}-${i}`} className="relative">
+                          <span className="hidden sm:block absolute -left-0.5 top-5 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
+                          <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-5 py-4 bg-gradient-to-r from-gray-50 to-white">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Tag className="h-5 w-5 text-gray-400 shrink-0" />
+                                {isEditing ? (
+                                  <input
+                                    value={editTopic}
+                                    onChange={(e) => setEditTopic(e.target.value)}
+                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-lg font-semibold focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                  />
+                                ) : (
+                                  <h5 className="text-lg md:text-2xl font-bold text-black-900 truncate">
+                                    {c.topic}
+                                  </h5>
+                                )}
+                              </div>
 
-                        <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
-                          {/* header */}
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-5 py-4 bg-gradient-to-r from-gray-50 to-white">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Tag className="h-5 w-5 text-gray-400 shrink-0" />
-                              <h5 className="text-lg md:text-xl font-bold text-black-900 truncate">
-                                {c.topic}
-                              </h5>
-                            </div>
-                            <div className="flex items-center gap-4 text-lg text-black-600">
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="h-6 w-6" />
-                                <span className="text-lg font-bold"></span>{formatDateTime(c.timestamp)}
-                              </span>
-                              {c.author && (
-                                <span className="inline-flex items-center gap-2">
-                                  <UserIcon className="h-8 w-8" />
-                                  <span className="text-lg font-semibold">{c.author}</span>
+                              <div className="flex items-center gap-4 text-lg text-black-600">
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock className="h-6 w-6" />
+                                  <span className="text-xl font-bold">
+                                    {formatDateTime(c.timestamp)}
+                                  </span>
                                 </span>
+                                {c.author && (
+                                  <span className="inline-flex items-center gap-2">
+                                    <UserIcon className="h-8 w-8" />
+                                    <span className="text-xl font-bold">{c.author}</span>
+                                  </span>
+                                )}
+
+                                <div className="flex items-center gap-2 ml-2">
+                                  {!isEditing ? (
+                                    <>
+                                      <button
+                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                        onClick={() => startEdit(c)}
+                                        title="Edit"
+                                      >
+                                        <Edit3 className="h-4 w-4" />
+                                        Edit
+                                      </button>
+                                      <button
+                                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-red-50 ${
+                                          isDeletingThis ? "opacity-60 pointer-events-none" : ""
+                                        }`}
+                                        onClick={() => deleteComment(c.id || "")}
+                                        title="Delete"
+                                      >
+                                        {isDeletingThis ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="h-4 w-4 text-white-600" />
+                                        )}
+                                        <span className="text-white-700">Delete</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm text-white ${
+                                          isSavingThis
+                                            ? "bg-blue-400 cursor-not-allowed"
+                                            : "bg-blue-600 hover:bg-blue-700"
+                                        }`}
+                                        onClick={() => saveEdit(c.id || "")}
+                                        disabled={isSavingThis}
+                                        title="Save"
+                                      >
+                                        {isSavingThis ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Save className="h-4 w-4" />
+                                        )}
+                                        Save
+                                      </button>
+                                      <button
+                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                        onClick={cancelEdit}
+                                        title="Cancel"
+                                      >
+                                        <X className="h-4 w-4" />
+                                        Cancel
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="px-5 py-4">
+                              {isEditing ? (
+                                <div className="relative">
+                                  <MessageSquareText className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                                  <textarea
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    className="w-full min-h-36 rounded-2xl border-2 border-gray-200 pl-10 pr-4 py-3
+                                               text-lg leading-relaxed shadow-sm placeholder:text-gray-400
+                                               focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                  />
+                                </div>
+                              ) : (
+                                <p className="text-xl md:text-2xl leading-relaxed text-gray-800 whitespace-pre-wrap">
+                                  {c.text}
+                                </p>
                               )}
                             </div>
                           </div>
-
-                          {/* body */}
-                          <div className="px-5 py-4">
-                          <p className="text-xl md:text-xl leading-relaxed text-gray-800 whitespace-pre-wrap">{c.text}</p>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : (
@@ -930,14 +1190,14 @@ const InspectionUploadPage = () => {
               <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6">
                 <div className="grid grid-cols-1 gap-5">
                   <div>
-                    <label className="block text-lg md:text-xl font-bold text-gray-800 mb-2">
+                    <label className="block text-lg md:text-2xl font-bold text-gray-800 mb-2">
                       Topic
                     </label>
                     <div className="relative">
                       <Tag className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-gray-400" />
                       <input
                         type="text"
-                        className="w-full rounded-2xl border-2 border-gray-200 pl-12 pr-4 py-4 text-xl
+                        className="w-full rounded-2xl border-2 border-gray-200 pl-12 pr-4 py-4 text-2xl
                                    shadow-sm placeholder:text-gray-400 focus:border-blue-500
                                    focus:ring-4 focus:ring-blue-100 outline-none"
                         placeholder="Enter Topic..."
@@ -948,14 +1208,14 @@ const InspectionUploadPage = () => {
                   </div>
 
                   <div>
-                    <label className="block text-lg md:text-xl font-bold text-gray-800 mb-2">
+                    <label className="block text-lg md:text-2xl font-bold text-gray-800 mb-2">
                       Comment
                     </label>
                     <div className="relative">
                       <MessageSquareText className="absolute left-4 top-4 h-6 w-6 text-gray-400" />
                       <textarea
                         className="w-full min-h-40 rounded-2xl border-2 border-gray-200 pl-12 pr-4 py-4
-                                   text-xl leading-relaxed shadow-sm placeholder:text-gray-400
+                                   text-2xl leading-relaxed shadow-sm placeholder:text-gray-400
                                    focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
                         rows={5}
                         placeholder="Write your detailed observations…"
@@ -965,7 +1225,7 @@ const InspectionUploadPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-left">
                     <button
                       onClick={handleSubmitComment}
                       disabled={isSavingComment}

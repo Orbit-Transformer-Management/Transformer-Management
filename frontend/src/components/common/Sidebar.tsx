@@ -78,19 +78,19 @@ const Sidebar = () => {
               )}
             </NavLink>
           ))}
-
-          {/* Collapse Toggle */}
+         
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="absolute top-1/2 -translate-y-1/2 right-0 z-50 p-1"
+            className="absolute top-1/2 -translate-y-1/2 right-0 z-50 p-1 rounded-full isolate"
             aria-label="Toggle sidebar width"
           >
             {isCollapsed ? (
-              <ChevronRight size={20} className="stroke-gray-400" />
+              <ChevronRight size={20} className="stroke-white mix-blend-difference" />
             ) : (
-              <ChevronLeft size={20} className="stroke-gray-400" />
+              <ChevronLeft size={20} className="stroke-white mix-blend-difference" />
             )}
           </button>
+
         </nav>
 
         {/* Bottom Section */}
