@@ -7,6 +7,7 @@ import com.orbit.Orbit.model.InspectionDetectsTimeline;
 import com.orbit.Orbit.model.InspectionModelDetects;
 import com.orbit.Orbit.repo.InspectionDetectsTimelineRepo;
 import com.orbit.Orbit.repo.InspectionModelDetectsRepo;
+import com.orbit.Orbit.repo.InspectionRepo;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,10 +16,12 @@ import java.util.List;
 public class DetectsService {
     private final InspectionModelDetectsRepo inspectionModelDetectsRepository;
     private final InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository;
+    private final InspectionRepo inspectionRepository;
 
-    public DetectsService(InspectionModelDetectsRepo inspectionModelDetectsRepository, InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository) {
+    public DetectsService(InspectionModelDetectsRepo inspectionModelDetectsRepository, InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository,InspectionRepo inspectionRepositary) {
         this.inspectionModelDetectsRepository = inspectionModelDetectsRepository;
         this.inspectionDetectsTimelineRepository = inspectionDetectsTimelineRepository;
+        this.inspectionRepository = inspectionRepositary;
     }
 
     public void save(RoboflowResponse predictions, Inspection inspection){
@@ -45,6 +48,33 @@ public class DetectsService {
         return inspectionModelDetectsRepository.findByInspection_InspectionNumber(inspectionNumber);
     }
 
+    public InspectionModelDetects add(UpdateDetectionRequest req,String inspectionNumber){
+        Inspection existingInspection = inspectionRepository.findById(inspectionNumber)
+                .orElseThrow(() -> new RuntimeException("Inspection not found with id: " + inspectionNumber));
+        InspectionModelDetects new_detect = new InspectionModelDetects();
+        new_detect.setInspection(existingInspection);
+        new_detect.setWidth(req.getWidth());
+        new_detect.setHeight(req.getHeight());
+        new_detect.setX(req.getX());
+        new_detect.setY(req.getY());
+        new_detect.setConfidence(req.getConfidence());
+        new_detect.setClassId(req.getClassId());
+        new_detect.setClassName(req.getClassName());
+        new_detect.setParentId(req.getParentId());
+        InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(new_detect,req.getAuthor(), req.getComment(),"add");
+        return inspectionModelDetectsRepository.save(new_detect);
+
+    }
+
+    public void deleteByDetectId(UpdateDetectionRequest req, String detectId) {
+        InspectionModelDetects existing = inspectionModelDetectsRepository
+                .findById(detectId)
+                .orElseThrow(() -> new RuntimeException("Detection not found with id: " + detectId));
+        InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(existing,req.getAuthor(), req.getComment(),"edit");
+        inspectionDetectsTimelineRepository.save(timeline);
+        inspectionModelDetectsRepository.deleteById(detectId);
+    }
+
     public InspectionModelDetects update(UpdateDetectionRequest req,String detectId){
         InspectionModelDetects existing = inspectionModelDetectsRepository
                 .findById(detectId)
@@ -57,7 +87,7 @@ public class DetectsService {
         existing.setClassId(req.getClassId());
 
         //ADD that to the timeline
-        InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(existing,req.getAuthor(), req.getComment());
+        InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(existing,req.getAuthor(), req.getComment(),"edit");
         inspectionDetectsTimelineRepository.save(timeline);
         return inspectionModelDetectsRepository.save(existing);
     }

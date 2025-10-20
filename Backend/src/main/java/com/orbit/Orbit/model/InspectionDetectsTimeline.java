@@ -20,17 +20,19 @@ public class InspectionDetectsTimeline {
     @JoinColumn(name = "inspection_number", referencedColumnName = "inspectionNumber")
     private Inspection inspection;
 
+    private String type;
     private String author; // optional: inspector name
     private String comment;
     private LocalDateTime createdAt;
 
     public InspectionDetectsTimeline() {}
 
-    public InspectionDetectsTimeline(InspectionModelDetects detect, String author, String comment) {
+    public InspectionDetectsTimeline(InspectionModelDetects detect, String author, String comment,String type) {
         this.detect = detect;
         this.inspection = detect.getInspection();
         this.author = author;
         this.comment = comment;
+        this.type = type;
     }
 
     @PrePersist
@@ -84,5 +86,13 @@ public class InspectionDetectsTimeline {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 }

@@ -82,6 +82,8 @@ public class InspectionController {
 
     }
 
+    //Analyze
+
     @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze")
     public ResponseEntity<List<InspectionModelDetects>> analyzeImage(@PathVariable String inspectionNumber) {
         List<InspectionModelDetects> detections = detectsService.get(inspectionNumber);
@@ -103,6 +105,21 @@ public class InspectionController {
         // Return it back
         return ResponseEntity.ok(updated);
     }
+
+    @PostMapping("/api/v1/inspections/{inspectionNumber}/analyze")
+    public ResponseEntity<InspectionModelDetects> adddetect(
+            @PathVariable String inspectionNumber,
+            @RequestBody UpdateDetectionRequest req) {
+        InspectionModelDetects detect =  detectsService.add(req,inspectionNumber);
+        return ResponseEntity.ok(detect);
+    }
+
+    @DeleteMapping("/api/v1/inspections/analyze/{detectId}")
+    public ResponseEntity<Void> deleteDetectionByDetectId(@PathVariable String detectId) {
+        detectsService.deleteByDetectId(detectId); // implement below
+        return ResponseEntity.noContent().build(); // 204
+    }
+
 
 
 
