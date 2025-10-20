@@ -961,20 +961,7 @@ const InspectionUploadPage = () => {
         payload
       );
     } catch (e1) {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/save-analysis`,
-          { ...payload, inspectionId: inspectionNo, action: "Edit" }
-        );
-      } catch (e2) {
-        console.warn("Edit save failed on known endpoints.", { e1, e2, payload });
-        try {
-          const key = "pendingAnnotationLogs";
-          const existing = JSON.parse(localStorage.getItem(key) || "[]");
-          existing.push({ inspectionNo, payload, ts: Date.now() });
-          localStorage.setItem(key, JSON.stringify(existing));
-        } catch {}
-      }
+      console.warn("Edit save failed.", e1);
     } finally {
       setIsSubmittingEditComment(false);
       setEditSelectedIndex(null);
@@ -1033,22 +1020,7 @@ const InspectionUploadPage = () => {
         payload
       );
     } catch (e1) {
-      try {
-        // Fallback: save analysis log if supported (not visible in Comments section)
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/save-analysis`,
-          { ...payload, inspectionId: inspectionNo, action: "Delete" }
-        );
-      } catch (e2) {
-        console.warn("Delete save failed on all known endpoints.", { e1, e2, payload });
-        // Keep UI updated; optionally queue to localStorage for later retry
-        try {
-          const key = "pendingAnnotationLogs";
-          const existing = JSON.parse(localStorage.getItem(key) || "[]");
-          existing.push({ inspectionNo, payload, ts: Date.now() });
-          localStorage.setItem(key, JSON.stringify(existing));
-        } catch {}
-      }
+      console.warn("Delete save failed.", e1);
     } finally {
       setIsSubmittingDeleteComment(false);
     }
@@ -1152,17 +1124,6 @@ const InspectionUploadPage = () => {
       );
     } catch (err) {
       console.warn("Saving annotation failed. UI kept in sync.", err);
-      // Try alternative endpoints if available as a fallback
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/save-analysis`,
-          {
-            inspectionId: inspectionNo,
-            predictions: thermalPredictions,
-            comment: `Annotation(Add) by Shaveen at ${new Date().toLocaleString()}\n` + comment,
-          }
-        );
-      } catch {}
     } finally {
       setSavingAnnotation(false);
       resetAnnoState();
@@ -1385,22 +1346,11 @@ const InspectionUploadPage = () => {
           res.data?.timestamp ?? res.data?.createdAt ?? new Date().toISOString(),
       };
       setComments((prev) => prev.map((c) => (c.id === tempId ? saved : c)));
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/save-analysis`,
-          {
-            inspectionId: inspectionNo,
-            predictions: thermalPredictions,
-            comment: `Topic: ${topic}\n${text}`,
-          }
-        );
-      } catch {
-        setComments((prev) => prev.filter((c) => c.id !== tempId));
-        setCommentTopic(topic);
-        setCommentText(text);
-        alert("Failed to save comment. Please try again.");
-      }
+    } catch (err) {
+      setComments((prev) => prev.filter((c) => c.id !== tempId));
+      setCommentTopic(topic);
+      setCommentText(text);
+      alert("Failed to save comment. Please try again.");
     } finally {
       setIsSavingComment(false);
     }
@@ -1440,17 +1390,10 @@ const InspectionUploadPage = () => {
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`,
         { topic: newTopic, comment: newText }
       );
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/update-comment`,
-          { id: commentId, topic: newTopic, comment: newText }
-        );
-      } catch (err) {
-        console.error("❌ Failed to update comment:", err);
-        setComments(prevComments);
-        alert("Failed to update comment.");
-      }
+    } catch (err) {
+      console.error("❌ Failed to update comment:", err);
+      setComments(prevComments);
+      alert("Failed to update comment.");
     } finally {
       setSavingEditId(null);
       cancelEdit();
@@ -1469,17 +1412,10 @@ const InspectionUploadPage = () => {
       await axios.delete(
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`
       );
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/delete-comment`,
-          { id: commentId }
-        );
-      } catch (err) {
-        console.error("❌ Failed to delete comment:", err);
-        setComments(prevComments);
-        alert("Failed to delete comment.");
-      }
+    } catch (err) {
+      console.error("❌ Failed to delete comment:", err);
+      setComments(prevComments);
+      alert("Failed to delete comment.");
     } finally {
       setDeletingId(null);
     }
@@ -1638,7 +1574,7 @@ const InspectionUploadPage = () => {
       <section className="mt-8">
         <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-3xl font-bold tracking-tight text-blue-700">Annotations Made</h3>
+            <h3 className="text-3xl font-bold tracking-tight text-red-700">Annotations Made</h3>
             <span className="text-sm text-gray-500">{annotationsMade.length} change{annotationsMade.length !== 1 ? "s" : ""}</span>
           </div>
           <div className="p-6">
