@@ -22,6 +22,8 @@ import {
   Save,
 } from "lucide-react";
 import axios from "axios";
+import { Rnd } from "react-rnd";
+// Local modal for comments (inlined to avoid path resolution issues)
 
 // === Types ===
 interface ImageDetails {
@@ -37,6 +39,7 @@ interface UploadProgress {
   type: "thermal" | "baseline";
 }
 interface Prediction {
+  id?: string;
   x: number;
   y: number;
   width: number;
@@ -45,12 +48,27 @@ interface Prediction {
   label: string; // "f" | "pf" | "normal"
   tag: string; // "Error N" | "Fault N" | "Normal"
 }
+interface DrawnRect {
+  x: number; // center x in image px
+  y: number; // center y in image px
+  width: number;
+  height: number;
+}
 interface InspectorComment {
   id?: string;
   topic: string;
   text: string;
   author?: string;
   timestamp: string; // ISO
+}
+
+interface AnnotationEntry {
+  id: string;
+  action: "Add" | "Edit" | "Delete";
+  comment: string;
+  user: string;
+  timestamp: string; // ISO
+  details?: string;
 }
 
 const INITIAL_ZOOM = 1;
@@ -77,6 +95,16 @@ interface ImageDisplayCardProps {
   onDeleteBaseline?: () => void;
   onDeleteThermal?: () => void;
   onReuploadBaseline?: () => void; // NEW
+  // Drawing support (thermal only)
+  enableBBoxDrawing?: boolean;
+  onBBoxDrawn?: (rect: DrawnRect) => void;
+  // Delete/select support (thermal only)
+  deleteMode?: boolean;
+  onOverlayClick?: (predictionIndex: number) => void;
+  // Edit support (thermal only)
+  editMode?: boolean;
+  editSelectedIndex?: number | null;
+  onEditDraftChange?: (draft: { left: number; top: number; width: number; height: number }) => void;
 }
 
 const ImageDisplayCard = React.memo(function ImageDisplayCard({
@@ -85,9 +113,17 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   predictions = [],
   onReuploadThermal,
   onReuploadBaseline, // NEW
+  enableBBoxDrawing = false,
+  onBBoxDrawn,
+  deleteMode = false,
+  onOverlayClick,
+  editMode = false,
+  editSelectedIndex = null,
+  onEditDraftChange,
 }: ImageDisplayCardProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const drawOverlayRef = useRef<HTMLDivElement>(null);
 
   const naturalW = useRef(0);
   const naturalH = useRef(0);
@@ -163,6 +199,8 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   }, []);
 
   const onMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    // Disable pan when drawing, delete mode, or edit mode is enabled
+    if (type === "thermal" && (enableBBoxDrawing || deleteMode || editMode)) return;
     dragging.current = true;
     dragStart.current = { x: e.clientX, y: e.clientY };
     translateStart.current = { ...translate };
@@ -181,6 +219,87 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   const zoomIn = () => setZoom((z) => Math.min(5, z + 0.2));
   const zoomOut = () => setZoom((z) => Math.max(0.2, z - 0.2));
   const resetView = () => centerAtFit();
+
+  // -------- Drawing state (thermal only) --------
+  const [isDrawing, setIsDrawing] = useState(false);
+  const drawStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [draftRect, setDraftRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const toImageCoords = (clientX: number, clientY: number) => {
+    const overlay = drawOverlayRef.current;
+    if (!overlay || !zoomRef.current) return { x: 0, y: 0 };
+    const r = overlay.getBoundingClientRect();
+    const x = (clientX - r.left) / zoomRef.current;
+    const y = (clientY - r.top) / zoomRef.current;
+    return { x: Math.max(0, Math.min(naturalW.current, x)), y: Math.max(0, Math.min(naturalH.current, y)) };
+  };
+
+  const onDrawMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!enableBBoxDrawing || type !== "thermal") return;
+    e.stopPropagation();
+    e.preventDefault();
+    const { x, y } = toImageCoords(e.clientX, e.clientY);
+    drawStart.current = { x, y };
+    setDraftRect({ left: x, top: y, width: 0, height: 0 });
+    setIsDrawing(true);
+  };
+
+  const onDrawMouseMove: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!isDrawing || !enableBBoxDrawing || type !== "thermal") return;
+    e.stopPropagation();
+    e.preventDefault();
+    const { x, y } = toImageCoords(e.clientX, e.clientY);
+    const sx = drawStart.current.x;
+    const sy = drawStart.current.y;
+    const left = Math.max(0, Math.min(sx, x));
+    const top = Math.max(0, Math.min(sy, y));
+    const right = Math.min(naturalW.current, Math.max(sx, x));
+    const bottom = Math.min(naturalH.current, Math.max(sy, y));
+    setDraftRect({ left, top, width: right - left, height: bottom - top });
+  };
+
+  const onDrawMouseUp: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!isDrawing || !enableBBoxDrawing || type !== "thermal") return;
+    e.stopPropagation();
+    e.preventDefault();
+    setIsDrawing(false);
+    if (draftRect && draftRect.width > 4 && draftRect.height > 4) {
+      const rect: DrawnRect = {
+        x: draftRect.left + draftRect.width / 2,
+        y: draftRect.top + draftRect.height / 2,
+        width: draftRect.width,
+        height: draftRect.height,
+      };
+      onBBoxDrawn && onBBoxDrawn(rect);
+    }
+    setDraftRect(null);
+  };
+
+  // -------- Edit overlay state (thermal only) --------
+  const [editCssBox, setEditCssBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (type !== "thermal") return;
+    if (!editMode || editSelectedIndex == null) {
+      setEditCssBox(null);
+      return;
+    }
+    const pred = predictions[editSelectedIndex];
+    if (!pred) return;
+    const left = pred.x - pred.width / 2;
+    const top = pred.y - pred.height / 2;
+    setEditCssBox({ left, top, width: pred.width, height: pred.height });
+  }, [editMode, editSelectedIndex, predictions, type]);
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-lg relative">
@@ -291,17 +410,69 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
                     ? "orange"
                     : "limegreen";
 
+                const selectable = deleteMode || (editMode && editSelectedIndex == null);
+                const isEditingThis = editMode && editSelectedIndex === idx && editCssBox;
+
+                if (isEditingThis && editCssBox) {
+                  return (
+                    <Rnd
+                      key={pred.id ?? idx}
+                      bounds="parent"
+                      size={{ width: editCssBox.width, height: editCssBox.height }}
+                      position={{ x: editCssBox.left, y: editCssBox.top }}
+                      scale={zoom}
+                      onDrag={(_, d) => setEditCssBox((b) => (b ? { ...b, left: d.x, top: d.y } : b))}
+                      onResize={(_, __, ref, ___, position) =>
+                        setEditCssBox({
+                          left: position.x,
+                          top: position.y,
+                          width: parseFloat(ref.style.width),
+                          height: parseFloat(ref.style.height),
+                        })
+                      }
+                      onDragStop={(_, d) => {
+                        const draft = {
+                          left: d.x,
+                          top: d.y,
+                          width: editCssBox.width,
+                          height: editCssBox.height,
+                        };
+                        onEditDraftChange && onEditDraftChange(draft);
+                      }}
+                      onResizeStop={(_, __, ref, ___, position) => {
+                        const draft = {
+                          left: position.x,
+                          top: position.y,
+                          width: parseFloat(ref.style.width),
+                          height: parseFloat(ref.style.height),
+                        };
+                        onEditDraftChange && onEditDraftChange(draft);
+                      }}
+                      style={{
+                        border: `2px solid ${color}`,
+                        boxShadow: "0 0 0 2px rgba(37,99,235,0.35) inset",
+                      }}
+                    >
+                      <span className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white/80 text-black">
+                        {pred.tag}
+                      </span>
+                    </Rnd>
+                  );
+                }
+
                 return (
                   <div
-                    key={idx}
-                    className="absolute text-xs pointer-events-none"
+                    key={pred.id ?? idx}
+                    className={`absolute text-xs ${selectable ? "cursor-pointer" : "pointer-events-none"}`}
                     style={{
                       left,
                       top,
                       width,
                       height,
                       border: `2px solid ${color}`,
+                      boxShadow: deleteMode ? "0 0 0 2px rgba(239,68,68,0.35) inset" : undefined,
                     }}
+                    onClick={selectable ? () => onOverlayClick?.(idx) : undefined}
                   >
                     <span className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white/80 text-black">
                       {pred.tag}
@@ -309,6 +480,30 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
                   </div>
                 );
               })}
+
+            {/* Drawing overlay (thermal only) */}
+            {type === "thermal" && enableBBoxDrawing && (
+              <div
+                ref={drawOverlayRef}
+                className="absolute inset-0 cursor-crosshair"
+                style={{ width: naturalW.current || 0, height: naturalH.current || 0 }}
+                onMouseDown={onDrawMouseDown}
+                onMouseMove={onDrawMouseMove}
+                onMouseUp={onDrawMouseUp}
+              >
+                {draftRect && (
+                  <div
+                    className="absolute border-2 border-blue-500/90 bg-blue-200/10"
+                    style={{
+                      left: draftRect.left,
+                      top: draftRect.top,
+                      width: draftRect.width,
+                      height: draftRect.height,
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -326,7 +521,9 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   prev.onDeleteBaseline === next.onDeleteBaseline &&
   prev.onDeleteThermal === next.onDeleteThermal &&
   prev.onReuploadBaseline === next.onReuploadBaseline && // NEW
-  prev.predictions === next.predictions
+  prev.predictions === next.predictions &&
+  prev.enableBBoxDrawing === next.enableBBoxDrawing &&
+  prev.deleteMode === next.deleteMode
 );
 
 /* --------------------------------- Page ------------------------------------ */
@@ -356,6 +553,29 @@ const InspectionUploadPage = () => {
 
   const [thermalPredictions, setThermalPredictions] = useState<Prediction[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  // Delete mode state
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteTargetIndex, setDeleteTargetIndex] = useState<number | null>(null);
+  const [isSubmittingDeleteComment, setIsSubmittingDeleteComment] = useState(false);
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false);
+  const [editSelectedIndex, setEditSelectedIndex] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [isSubmittingEditComment, setIsSubmittingEditComment] = useState(false);
+  const [editCommentOpen, setEditCommentOpen] = useState(false);
+  // Session annotations log (Add/Edit/Delete)
+  const [annotationsMade, setAnnotationsMade] = useState<AnnotationEntry[]>([]);
+
+  // User annotation/draw state (Step 1 - Add)
+  const [isAddMode, setIsAddMode] = useState(false);
+  const [pendingRect, setPendingRect] = useState<DrawnRect | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [annoFaultName, setAnnoFaultName] = useState("");
+  const [annoConditionType, setAnnoConditionType] = useState<"Faulty" | "Normal" | "Potential Faulty">("Faulty");
+  const [annoConfidence, setAnnoConfidence] = useState<string>("");
+  const [annoComment, setAnnoComment] = useState<string>("");
+  const [savingAnnotation, setSavingAnnotation] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<InspectorComment[]>([]);
@@ -374,8 +594,8 @@ const InspectionUploadPage = () => {
   const [isDeletingBaseline, setIsDeletingBaseline] = useState(false);
   const [isDeletingThermal, setIsDeletingThermal] = useState(false);
 
-  // === Predictions ===
-  type InspectionModelDetects = {
+   // === Predictions ===
+type InspectionModelDetects = {
   detectId: number;
   width: number;
   height: number;
@@ -670,6 +890,267 @@ const fetchPredictions = async () => {
     baselineInputRef.current?.click();
   }, []);
 
+  // Delete flow
+  const onOverlayClickForDelete = (idx: number) => {
+    if (!deleteMode) return;
+    setDeleteTargetIndex(idx);
+  };
+
+  const cancelDeleteComment = () => {
+    setDeleteTargetIndex(null);
+  };
+
+  // Edit flow
+  const onOverlayClickForEdit = (idx: number) => {
+    if (!editMode || editSelectedIndex != null) return;
+    setEditSelectedIndex(idx);
+  };
+
+  const onEditDraftChange = (draft: { left: number; top: number; width: number; height: number }) => {
+    setEditDraft(draft);
+  };
+
+  const cancelEditComment = () => {
+    // Close comment modal; remain in edit mode so user can continue adjusting or exit again
+    setEditCommentOpen(false);
+  };
+
+  const submitEditComment = async (comment: string) => {
+    if (editSelectedIndex == null || !inspectionNo) return;
+    const original = thermalPredictions[editSelectedIndex];
+    if (!original || !editDraft) return;
+
+    setIsSubmittingEditComment(true);
+
+    // Convert draft CSS coords to model center coords
+    const newX = editDraft.left + editDraft.width / 2;
+    const newY = editDraft.top + editDraft.height / 2;
+
+    // Update UI first
+    const updated: Prediction = {
+      ...original,
+      x: newX,
+      y: newY,
+      width: editDraft.width,
+      height: editDraft.height,
+    };
+    setThermalPredictions((prev) => prev.map((p, i) => (i === editSelectedIndex ? updated : p)));
+
+    const timestamp = new Date().toISOString();
+    const classId = updated.label === "pf" ? 2 : updated.label === "f" ? 1 : 0;
+    const payload = {
+      id: updated.id ?? original.id,
+      annotation_type: "Edit",
+      width: updated.width,
+      height: updated.height,
+      x: updated.x,
+      y: updated.y,
+      confidence: updated.confidence,
+      class_id: classId,
+      class: updated.label,
+      parent_id: "image",
+      user: "Shaveen",
+      timestamp,
+      tag: updated.tag,
+      comment,
+      // previous values for audit (optional fields)
+      prev_width: original.width,
+      prev_height: original.height,
+      prev_x: original.x,
+      prev_y: original.y,
+      prev_confidence: original.confidence,
+      prev_class: original.label,
+      prev_tag: original.tag,
+    } as const;
+
+    // Log to local session list immediately
+    setAnnotationsMade((prev) => [
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+        action: "Edit",
+        comment,
+        user: "Shaveen",
+        timestamp,
+        details: `Edited ${original.tag ?? "box"}`,
+      },
+      ...prev,
+    ]);
+
+    try {
+      await axios.post(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/annotations`,
+        payload
+      );
+    } catch (e1) {
+      console.warn("Edit save failed.", e1);
+    } finally {
+      setIsSubmittingEditComment(false);
+      setEditSelectedIndex(null);
+      setEditDraft(null);
+      setEditCommentOpen(false);
+      setEditMode(false);
+    }
+  };
+
+  const submitDeleteComment = async (comment: string) => {
+    if (deleteTargetIndex == null || !inspectionNo) return;
+    const target = thermalPredictions[deleteTargetIndex];
+    setIsSubmittingDeleteComment(true);
+
+    // Optimistically remove from UI first
+    setThermalPredictions((prev) => prev.filter((_, i) => i !== deleteTargetIndex));
+    setDeleteTargetIndex(null);
+    setDeleteMode(false);
+
+    const timestamp = new Date().toISOString();
+    const classId = target.label === "pf" ? 2 : target.label === "f" ? 1 : 0;
+    const payload = {
+      id: target.id,
+      annotation_type: "Delete",
+      width: target.width,
+      height: target.height,
+      x: target.x,
+      y: target.y,
+      confidence: target.confidence,
+      class_id: classId,
+      class: target.label,
+      parent_id: "image",
+      user: "Shaveen",
+      timestamp,
+      tag: target.tag,
+      comment,
+    } as const;
+
+    // Log to local session list immediately
+    setAnnotationsMade((prev) => [
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+        action: "Delete",
+        comment,
+        user: "Shaveen",
+        timestamp,
+        details: `Deleted ${target?.tag ?? "box"}`,
+      },
+      ...prev,
+    ]);
+
+    try {
+      // Try primary endpoint
+      await axios.post(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/annotations`,
+        payload
+      );
+    } catch (e1) {
+      console.warn("Delete save failed.", e1);
+    } finally {
+      setIsSubmittingDeleteComment(false);
+    }
+  };
+
+  // When user finishes drawing a rect on the thermal image
+  const handleBBoxDrawn = (rect: DrawnRect) => {
+    setPendingRect(rect);
+    // Open details modal
+    setDetailsModalOpen(true);
+  };
+
+  const resetAnnoState = () => {
+    setIsAddMode(false);
+    setPendingRect(null);
+    setDetailsModalOpen(false);
+    setCommentModalOpen(false);
+    setAnnoFaultName("");
+    setAnnoConditionType("Faulty");
+    setAnnoConfidence("");
+    setAnnoComment("");
+  };
+
+  // Save details -> update UI list and open comment modal
+  const saveDetailsAndAskComment = () => {
+    if (!pendingRect) return;
+    const name = annoFaultName.trim();
+    const confVal = parseFloat(annoConfidence);
+    if (!name || isNaN(confVal)) {
+      alert("Please enter Fault Name and a numeric Confidence (as percentage).");
+      return;
+    }
+
+    const label =
+      annoConditionType === "Faulty" ? "pf" : annoConditionType === "Potential Faulty" ? "f" : "normal";
+    const confidenceFraction = Math.max(0, Math.min(100, confVal)) / 100;
+
+    // Update the list/overlays immediately
+    setThermalPredictions((prev) => [
+      ...prev,
+      {
+        x: pendingRect.x,
+        y: pendingRect.y,
+        width: pendingRect.width,
+        height: pendingRect.height,
+        confidence: confidenceFraction,
+        label,
+        tag: name,
+      },
+    ]);
+
+    // Now ask for comment
+    setDetailsModalOpen(false);
+    setCommentModalOpen(true);
+  };
+
+  // Persist annotation audit with comment
+  const saveAnnotationWithComment = async (comment: string) => {
+    if (!inspectionNo || !pendingRect) return;
+    setSavingAnnotation(true);
+    try {
+      const cls =
+        annoConditionType === "Faulty" ? "pf" :
+        annoConditionType === "Potential Faulty" ? "f" : "normal";
+      const classId = cls === "pf" ? 2 : cls === "f" ? 1 : 0;
+      const confidencePercent = Math.max(0, Math.min(100, parseFloat(annoConfidence) || 0));
+      const confidence = confidencePercent / 100;
+      const timestamp = new Date().toISOString();
+
+      const payload = {
+        annotation_type: "Add",
+        width: pendingRect.width,
+        height: pendingRect.height,
+        x: pendingRect.x,
+        y: pendingRect.y,
+        confidence,
+        class_id: classId,
+        class: cls,
+        parent_id: "image",
+        user: "Shaveen",
+        timestamp,
+        tag: annoFaultName.trim(),
+        comment,
+      } as const;
+
+      // Log to local session list immediately
+      setAnnotationsMade((prev) => [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+          action: "Add",
+          comment,
+          user: "Shaveen",
+          timestamp,
+          details: `Added ${payload.tag} (${annoConditionType}, ${confidencePercent}%)`,
+        },
+        ...prev,
+      ]);
+      await axios.post(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/annotations`,
+        payload
+      );
+    } catch (err) {
+      console.warn("Saving annotation failed. UI kept in sync.", err);
+    } finally {
+      setSavingAnnotation(false);
+      resetAnnoState();
+    }
+  };
+
   // === Upload Progress Modal ===
   const ProgressModal = () => {
     if (!uploadProgress.isVisible) return null;
@@ -695,7 +1176,7 @@ const fetchPredictions = async () => {
 
             <h3 id="upload-title" className="text-xl font-bold tracking-tight">
               {isPredicting
-                ? `Running ${uploadProgress.type} Prediction…`
+                ? `Uploading ${uploadProgress.type} Image Done`
                 : isDoneBaseline
                 ? `Baseline Image Uploading...`
                 : `Uploading ${uploadProgress.type} Image…`}
@@ -886,22 +1367,11 @@ const fetchPredictions = async () => {
           res.data?.timestamp ?? res.data?.createdAt ?? new Date().toISOString(),
       };
       setComments((prev) => prev.map((c) => (c.id === tempId ? saved : c)));
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/save-analysis`,
-          {
-            inspectionId: inspectionNo,
-            predictions: thermalPredictions,
-            comment: `Topic: ${topic}\n${text}`,
-          }
-        );
-      } catch {
-        setComments((prev) => prev.filter((c) => c.id !== tempId));
-        setCommentTopic(topic);
-        setCommentText(text);
-        alert("Failed to save comment. Please try again.");
-      }
+    } catch (err) {
+      setComments((prev) => prev.filter((c) => c.id !== tempId));
+      setCommentTopic(topic);
+      setCommentText(text);
+      alert("Failed to save comment. Please try again.");
     } finally {
       setIsSavingComment(false);
     }
@@ -941,17 +1411,10 @@ const fetchPredictions = async () => {
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`,
         { topic: newTopic, comment: newText }
       );
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/update-comment`,
-          { id: commentId, topic: newTopic, comment: newText }
-        );
-      } catch (err) {
-        console.error("❌ Failed to update comment:", err);
-        setComments(prevComments);
-        alert("Failed to update comment.");
-      }
+    } catch (err) {
+      console.error("❌ Failed to update comment:", err);
+      setComments(prevComments);
+      alert("Failed to update comment.");
     } finally {
       setSavingEditId(null);
       cancelEdit();
@@ -960,8 +1423,6 @@ const fetchPredictions = async () => {
 
   const deleteComment = async (commentId: string) => {
     if (!inspectionNo || !commentId) return;
-    const ok = window.confirm("Delete this comment?");
-    if (!ok) return;
 
     setDeletingId(commentId);
     const prevComments = comments;
@@ -972,17 +1433,10 @@ const fetchPredictions = async () => {
       await axios.delete(
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`
       );
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/delete-comment`,
-          { id: commentId }
-        );
-      } catch (err) {
-        console.error("❌ Failed to delete comment:", err);
-        setComments(prevComments);
-        alert("Failed to delete comment.");
-      }
+    } catch (err) {
+      console.error("❌ Failed to delete comment:", err);
+      setComments(prevComments);
+      alert("Failed to delete comment.");
     } finally {
       setDeletingId(null);
     }
@@ -1026,11 +1480,11 @@ const fetchPredictions = async () => {
         </button>
         <div>
           <h2 className="text-4xl font-bold text-gray-800">
-            Transformer Inspection No {inspectionNo}
+            Transformer Inspection No - {inspectionNo}
           </h2>
           {transformerNo && (
             <p className="text-3xl font-bold text-gray-500">
-              Associated Transformer No : {transformerNo}
+              Transformer No - {transformerNo}
             </p>
           )}
         </div>
@@ -1075,12 +1529,120 @@ const fetchPredictions = async () => {
               predictions={thermalPredictions}
               onReuploadThermal={handleReuploadThermal}
               onDeleteThermal={handleDeleteThermal}
+              enableBBoxDrawing={isAddMode}
+              onBBoxDrawn={handleBBoxDrawn}
+              deleteMode={deleteMode}
+              onOverlayClick={deleteMode ? onOverlayClickForDelete : onOverlayClickForEdit}
+              editMode={editMode}
+              editSelectedIndex={editSelectedIndex}
+              onEditDraftChange={onEditDraftChange}
             />
+
+            {/* Add/Edit/Delete controls (Step 1: Add) */}
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                className={`px-4 py-2 rounded-lg text-white font-semibold ${
+                  isAddMode ? "bg-blue-700" : "bg-blue-600 hover:bg-blue-700"
+                } disabled:opacity-50`}
+                onClick={() => setIsAddMode((v) => !v)}
+                disabled={!thermalImage}
+                title="Add a new bounding box"
+              >
+                {isAddMode ? "Adding… Click & drag" : "Add"}
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg font-semibold ${editMode ? "bg-amber-600 text-white" : "border hover:bg-amber-50 text-amber-700"}`}
+                title={editMode ? "Exit Edit (will ask for comment if changes present)" : "Edit a bounding box"}
+                onClick={() => {
+                  if (!editMode) {
+                    // Enter edit mode
+                    setEditMode(true);
+                    setIsAddMode(false);
+                    setDeleteMode(false);
+                  } else {
+                    // Attempt to exit edit mode; if changes exist, open comment modal instead
+                    if (editSelectedIndex != null && editDraft) {
+                      setEditCommentOpen(true);
+                    } else {
+                      // No changes to save; just exit
+                      setEditMode(false);
+                      setEditSelectedIndex(null);
+                      setEditDraft(null);
+                    }
+                  }
+                }}
+              >
+                {editMode ? "Exit Edit" : "Edit"}
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg font-semibold ${deleteMode ? "bg-red-600 text-white" : "border hover:bg-red-50 text-red-700"}`}
+                title={deleteMode ? "Click a box to delete" : "Delete a bounding box"}
+                onClick={() => {
+                  setDeleteMode((m) => !m);
+                  if (!deleteMode) setIsAddMode(false);
+                }}
+              >
+                {deleteMode ? "Exit Delete" : "Delete"}
+              </button>
+            </div>
           </div>
         ) : (
           <ImageUploadCard type="thermal" />
         )}
       </div>
+
+      {/* Annotations Made */}
+      <section className="mt-8">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-3xl font-bold tracking-tight text-red-700">Annotations Made</h3>
+            <span className="text-sm text-gray-500">{annotationsMade.length} change{annotationsMade.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="p-6">
+            {annotationsMade.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-600 font-semibold">
+                No annotations have been made in this session.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left">
+                  <thead>
+                    <tr className="text-gray-600">
+                      <th className="px-4 py-2 text-base">Change</th>
+                      <th className="px-4 py-2 text-base">Comment</th>
+                      <th className="px-4 py-2 text-base">User</th>
+                      <th className="px-4 py-2 text-base">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {annotationsMade.map((a) => (
+                      <tr key={a.id} className="border-t">
+                        <td className="px-4 py-3 align-top">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold ${
+                            a.action === "Add"
+                              ? "bg-blue-100 text-blue-700"
+                              : a.action === "Edit"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-red-100 text-red-700"
+                          }`}>
+                            {a.action}
+                          </span>
+                          {a.details && (
+                            <div className="mt-1 text-gray-800 text-base">{a.details}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-800 text-base whitespace-pre-wrap">{a.comment || "—"}</td>
+                        <td className="px-4 py-3 text-gray-900 font-semibold text-base">{a.user}</td>
+                        <td className="px-4 py-3 text-gray-700 text-base">{formatDateTime(a.timestamp)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Analysis */}
       <section className="mt-10">
@@ -1365,8 +1927,227 @@ const fetchPredictions = async () => {
           </div>
         </div>
       </section>
+
+      {/* --------- Details Modal (Fault Name, Condition, Confidence) --------- */}
+      <ModalShell
+        open={detailsModalOpen}
+        onClose={resetAnnoState}
+        title="Add Annotation Details"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Fault Name</label>
+            <input
+              value={annoFaultName}
+              onChange={(e) => setAnnoFaultName(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2"
+              placeholder="e.g., Hotspot near bushing"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">Condition Type</label>
+              <select
+                className="w-full border rounded-lg px-3 py-2"
+                value={annoConditionType}
+                onChange={(e) => setAnnoConditionType(e.target.value as any)}
+              >
+                <option>Faulty</option>
+                <option>Normal</option>
+                <option>Potential Faulty</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Confidence (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={annoConfidence}
+                onChange={(e) => setAnnoConfidence(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="e.g., 92.5"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button className="px-4 py-2 rounded-lg border" onClick={resetAnnoState}>
+              Cancel
+            </button>
+            <button
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white"
+              onClick={saveDetailsAndAskComment}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </ModalShell>
+
+      {/* ------------------------ Comment confirmation modal ------------------------ */}
+      <ModalShell
+        open={commentModalOpen}
+        onClose={resetAnnoState}
+        title="Add a comment"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Please add a comment to confirm this annotation. This will be saved with
+            annotation type, user, and timestamp.
+          </p>
+          <textarea
+            className="w-full min-h-28 border rounded-lg px-3 py-2"
+            value={annoComment}
+            onChange={(e) => setAnnoComment(e.target.value)}
+            placeholder="Comment about why this box was added"
+          />
+          <div className="flex justify-end gap-2">
+            <button className="px-4 py-2 rounded-lg border" onClick={resetAnnoState}>
+              Cancel
+            </button>
+            <button
+              className={`px-4 py-2 rounded-lg text-white ${
+                savingAnnotation ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+              }`}
+              disabled={savingAnnotation}
+              onClick={() => saveAnnotationWithComment(annoComment)}
+            >
+              {savingAnnotation ? "Saving…" : "Save Comment"}
+            </button>
+          </div>
+        </div>
+      </ModalShell>
+      {/* Delete comment modal */}
+      <CommentModal
+        open={deleteMode && deleteTargetIndex != null}
+        title="Confirm Deletion"
+        subtitle="Please enter a brief reason for deleting this annotation."
+        placeholder="Reason for deletion…"
+        onCancel={cancelDeleteComment}
+        onSubmit={submitDeleteComment}
+        isSubmitting={isSubmittingDeleteComment}
+      />
+
+      {/* Edit comment modal */}
+      <CommentModal
+        open={editCommentOpen}
+        title="Confirm Edit"
+        subtitle="Please enter a brief comment describing the modification."
+        placeholder="Reason for edit…"
+        onCancel={cancelEditComment}
+        onSubmit={submitEditComment}
+        isSubmitting={isSubmittingEditComment}
+      />
     </PageLayout>
   );
 };
 
+// ---------- Modals for Annotation Details and Comment ----------
+
+const ModalShell: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}> = ({ open, onClose, title, children }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40">
+      <div className="bg-white w-[min(92vw,560px)] rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <button className="p-1 rounded hover:bg-gray-100" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// We extend the default export to render the modals at the end of the tree
+const WrappedInspectionUploadPage: React.FC = () => {
+  // We need access to inner state, so render the original component and portals
+  // But since the page component already contains states, we can't easily wrap here without refactor.
+  // Therefore, this wrapper is a no-op. The modals are rendered inline within the page above.
+  return <></>;
+};
+
 export default InspectionUploadPage;
+
+// Hoisted function component used above in JSX
+type CommentModalProps = {
+  open: boolean;
+  title?: string;
+  subtitle?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  isSubmitting?: boolean;
+  onCancel: () => void;
+  onSubmit: (comment: string) => void | Promise<void>;
+};
+
+function CommentModal({
+  open,
+  title = "Add a comment",
+  subtitle,
+  placeholder = "Type your comment…",
+  defaultValue = "",
+  isSubmitting = false,
+  onCancel,
+  onSubmit,
+}: CommentModalProps) {
+  const [value, setValue] = React.useState<string>(defaultValue);
+  React.useEffect(() => {
+    if (open) setValue(defaultValue || "");
+  }, [open, defaultValue]);
+
+  if (!open) return null;
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    await onSubmit(value.trim());
+  };
+
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/40">
+      <div className="bg-white w-[min(92vw,560px)] rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <button className="p-1 rounded hover:bg-gray-100" onClick={onCancel} aria-label="Close">
+            <X />
+          </button>
+        </div>
+        {subtitle && <p className="text-sm text-gray-600 mb-3">{subtitle}</p>}
+        <textarea
+          className="w-full min-h-28 border rounded-lg px-3 py-2"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button className="px-4 py-2 rounded-lg border" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg text-white ${isSubmitting ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"}`}
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving…
+              </span>
+            ) : (
+              "Save Comment"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
