@@ -375,51 +375,73 @@ const InspectionUploadPage = () => {
   const [isDeletingThermal, setIsDeletingThermal] = useState(false);
 
   // === Predictions ===
-  const fetchPredictions = async () => {
-    if (!inspectionNo) return;
-    try {
-      setIsAnalyzing(true);
-      const res = await axios.get(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`
-      );
+  type InspectionModelDetects = {
+  detectId: number;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  confidence: number;
+  classId: number;
+  className: string | null;
+  detectionId?: string | null;
+  parentId?: string | null;
+};
 
-      const detections: Prediction[] = [];
-      let errorCount = 0;
-      let faultCount = 0;
+type Prediction = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+  label: string; // "f", "pf", etc.
+  tag: string;   // "Error 1", "Fault 1", "Normal", etc.
+};
 
-      (res.data.outputs || []).forEach((output: any) => {
-        if (output.predictions?.predictions) {
-          output.predictions.predictions.forEach((det: any) => {
-            let tag = "Normal";
-            if (det.class === "f") {
-              errorCount++;
-              tag = `Error ${errorCount}`;
-            } else if (det.class === "pf") {
-              faultCount++;
-              tag = `Fault ${faultCount}`;
-            }
+const fetchPredictions = async () => {
+  if (!inspectionNo) return;
+  try {
+    setIsAnalyzing(true);
 
-            detections.push({
-              x: det.x,
-              y: det.y,
-              width: det.width,
-              height: det.height,
-              confidence: det.confidence,
-              label: det.class,
-              tag,
-            });
-          });
-        }
-      });
+    const { data } = await axios.get<InspectionModelDetects[]>(
+      `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`
+    );
 
-      setThermalPredictions(detections);
-    } catch (err) {
-      console.error("❌ Analysis failed:", err);
-      setThermalPredictions([]);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+    let errorCount = 0;
+    let faultCount = 0;
+
+    const detections: Prediction[] = (data || []).map((det) => {
+      const label = (det.className ?? "").trim();
+      let tag = "Normal";
+
+      // adjust these conditions to your actual class labels if needed
+      if (label.toLowerCase() === "f") {
+        errorCount += 1;
+        tag = `Error ${errorCount}`;
+      } else if (label.toLowerCase() === "pf") {
+        faultCount += 1;
+        tag = `Fault ${faultCount}`;
+      }
+
+      return {
+        x: det.x,
+        y: det.y,
+        width: det.width,
+        height: det.height,
+        confidence: det.confidence,
+        label,
+        tag,
+      };
+    });
+
+    setThermalPredictions(detections);
+  } catch (err) {
+    console.error("❌ Analysis failed:", err);
+    setThermalPredictions([]);
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
 
   // === Comments ===
   const fetchComments = useCallback(async () => {

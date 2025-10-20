@@ -1,4 +1,12 @@
 package com.orbit.Orbit.repo;
 
-public class InspectionModelDetects {
+import com.orbit.Orbit.model.InspectionModelDetects;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface InspectionModelDetectsRepo extends JpaRepository<InspectionModelDetects, String> {
+    List<InspectionModelDetects> findByInspection_InspectionNumber(String inspectionNumber);
 }

@@ -6,6 +6,7 @@ import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.dto.RoboflowResponse;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.InspectionComment;
+import com.orbit.Orbit.model.InspectionModelDetects;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
@@ -85,22 +86,22 @@ public class InspectionController {
     }
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze")
-    public ResponseEntity<RoboflowResponse> analyzeImage(@PathVariable String inspectionNumber) {
-        RoboflowResponse prediction = inspectionService.getPrediction(inspectionNumber);
-        return ResponseEntity.ok(prediction);
+    public ResponseEntity<List<InspectionModelDetects>> analyzeImage(@PathVariable String inspectionNumber) {
+        List<InspectionModelDetects> detections = inspectionService.getPredictions(inspectionNumber);
+        return ResponseEntity.ok(detections);
     }
 
-    @PutMapping("/api/v1/inspections/{inspectionNumber}/analyze")
-    public ResponseEntity<RoboflowResponse> updatePrediction(
-            @PathVariable String inspectionNumber,
-            @RequestBody RoboflowResponse prediction) {
-
-        // Save the provided prediction JSON to DB
-        inspectionService.updatePrediction(inspectionNumber, prediction);
-
-        // Return it back
-        return ResponseEntity.ok(prediction);
-    }
+//    @PutMapping("/api/v1/inspections/{inspectionNumber}/analyze")
+//    public ResponseEntity<RoboflowResponse> updatePrediction(
+//            @PathVariable String inspectionNumber,
+//            @RequestBody RoboflowResponse prediction) {
+//
+//        // Save the provided prediction JSON to DB
+//        inspectionService.updatePrediction(inspectionNumber, prediction);
+//
+//        // Return it back
+//        return ResponseEntity.ok(prediction);
+//    }
 
 
 

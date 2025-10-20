@@ -5,8 +5,10 @@ import com.orbit.Orbit.dto.InspectionRequest;
 import com.orbit.Orbit.dto.InspectionResponse;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.InspectionComment;
+import com.orbit.Orbit.model.InspectionModelDetects;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionCommentRepo;
+import com.orbit.Orbit.repo.InspectionModelDetectsRepo;
 import com.orbit.Orbit.repo.InspectionRepo;
 import com.orbit.Orbit.repo.TransformerRepo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,16 +43,18 @@ public class InspectionService {
 
     private final InspectionRepo inspectionRepository;
     private final InspectionCommentRepo inspectionCommentRepository;
+    private final InspectionModelDetectsRepo inspectionModelDetectsRepository;
 
     private final TransformerService transformerService;
 
     private final RoboflowService roboflowService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository) {
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository, InspectionModelDetectsRepo inspectionModelDetectsRepository) {
         this.inspectionRepository = inspectionRepository;
         this.transformerService = transformerService;
         this.roboflowService = roboflowService;
         this.inspectionCommentRepository = inspectionCommentRepository;
+        this.inspectionModelDetectsRepository = inspectionModelDetectsRepository;
     }
 
     public Inspection save(InspectionRequest req){
@@ -116,44 +120,31 @@ public class InspectionService {
         return new InspectionResponse(updatedInspection);
     }
 
-    public RoboflowResponse getPrediction(String inspectionNumber) {
-        Inspection inspection = inspectionRepository.findById(inspectionNumber)
-                .orElse(null);
-
-        if (inspection == null || inspection.getPredictionJson() == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(
-                    inspection.getPredictionJson(),
-                    RoboflowResponse.class
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error parsing prediction JSON", e);
-        }
+    public List<InspectionModelDetects> getPredictions(String inspectionNumber) {
+        return inspectionModelDetectsRepository.findByInspection_InspectionNumber(inspectionNumber);
     }
 
-    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
-        Inspection inspection = inspectionRepository.findById(inspectionNumber)
-                .orElse(null);
-
-        if (inspection == null) {
-            return null; // or throw new RuntimeException("Inspection not found");
-        }
-
-        try {
-            // Convert DTO -> JSON string
-            String json = objectMapper.writeValueAsString(prediction);
-
-            // Save it in the inspection
-            inspection.setPredictionJson(json);
-            inspectionRepository.save(inspection);
-
-            return prediction; // return the same DTO back
-        } catch (Exception e) {
-            throw new RuntimeException("Error saving prediction JSON", e);
-        }
-    }
+//    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
+//        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+//                .orElse(null);
+//
+//        if (inspection == null) {
+//            return null; // or throw new RuntimeException("Inspection not found");
+//        }
+//
+//        try {
+//            // Convert DTO -> JSON string
+//            String json = objectMapper.writeValueAsString(prediction);
+//
+//            // Save it in the inspection
+//            inspection.setPredictionJson(json);
+//            inspectionRepository.save(inspection);
+//
+//            return prediction; // return the same DTO back
+//        } catch (Exception e) {
+//            throw new RuntimeException("Error saving prediction JSON", e);
+//        }
+//    }
 
 
 
@@ -199,9 +190,28 @@ public class InspectionService {
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to read image resource", e);
             }
-            RoboflowResponse prediction = roboflowService.analyzeInspectionImage(base64Image);
-            inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
+            RoboflowResponse predictions = roboflowService.analyzeInspectionImage(base64Image);
             this.inspectionRepository.save(inspection);
+            //inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
+            //Saving all the predictions
+
+            for (var out : predictions.getOutputs()) {
+                if (out.getPredictions() == null || out.getPredictions().getPredictions() == null) continue;
+                for (var d : out.getPredictions().getPredictions()) {
+                    InspectionModelDetects e = new InspectionModelDetects();
+                    e.setInspection(inspection);         // your current Inspection entity
+                    e.setWidth(d.getWidth());
+                    e.setHeight(d.getHeight());
+                    e.setX(d.getX());
+                    e.setY(d.getY());
+                    e.setConfidence(d.getConfidence());
+                    e.setClassId(d.getClassId());
+                    e.setDetectionId(d.getDetectionId());
+                    e.setClassName(d.getClassName());
+                    e.setParentId(d.getParentId());
+                    inspectionModelDetectsRepository.save(e);
+                }
+            }
 
         return final_url;
 
