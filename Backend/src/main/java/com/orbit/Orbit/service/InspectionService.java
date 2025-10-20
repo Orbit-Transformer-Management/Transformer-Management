@@ -43,18 +43,20 @@ public class InspectionService {
 
     private final InspectionRepo inspectionRepository;
     private final InspectionCommentRepo inspectionCommentRepository;
-    private final InspectionModelDetectsRepo inspectionModelDetectsRepository;
+
 
     private final TransformerService transformerService;
 
     private final RoboflowService roboflowService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository, InspectionModelDetectsRepo inspectionModelDetectsRepository) {
+    private final DetectsService detectsService;
+
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository, DetectsService detectsService) {
         this.inspectionRepository = inspectionRepository;
+        this.inspectionCommentRepository = inspectionCommentRepository;
         this.transformerService = transformerService;
         this.roboflowService = roboflowService;
-        this.inspectionCommentRepository = inspectionCommentRepository;
-        this.inspectionModelDetectsRepository = inspectionModelDetectsRepository;
+        this.detectsService = detectsService;
     }
 
     public Inspection save(InspectionRequest req){
@@ -121,7 +123,7 @@ public class InspectionService {
     }
 
     public List<InspectionModelDetects> getPredictions(String inspectionNumber) {
-        return inspectionModelDetectsRepository.findByInspection_InspectionNumber(inspectionNumber);
+        return detectsService.get(inspectionNumber);
     }
 
 //    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
@@ -192,26 +194,11 @@ public class InspectionService {
             }
             RoboflowResponse predictions = roboflowService.analyzeInspectionImage(base64Image);
             this.inspectionRepository.save(inspection);
+            detectsService.save(predictions,inspection);
             //inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
             //Saving all the predictions
 
-            for (var out : predictions.getOutputs()) {
-                if (out.getPredictions() == null || out.getPredictions().getPredictions() == null) continue;
-                for (var d : out.getPredictions().getPredictions()) {
-                    InspectionModelDetects e = new InspectionModelDetects();
-                    e.setInspection(inspection);         // your current Inspection entity
-                    e.setWidth(d.getWidth());
-                    e.setHeight(d.getHeight());
-                    e.setX(d.getX());
-                    e.setY(d.getY());
-                    e.setConfidence(d.getConfidence());
-                    e.setClassId(d.getClassId());
-                    e.setDetectionId(d.getDetectionId());
-                    e.setClassName(d.getClassName());
-                    e.setParentId(d.getParentId());
-                    inspectionModelDetectsRepository.save(e);
-                }
-            }
+
 
         return final_url;
 

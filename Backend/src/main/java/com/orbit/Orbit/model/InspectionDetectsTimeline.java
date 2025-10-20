@@ -26,9 +26,9 @@ public class InspectionDetectsTimeline {
 
     public InspectionDetectsTimeline() {}
 
-    public InspectionDetectsTimeline(InspectionModelDetects detect, Inspection inspection, String author, String comment) {
+    public InspectionDetectsTimeline(InspectionModelDetects detect, String author, String comment) {
         this.detect = detect;
-        this.inspection = inspection;
+        this.inspection = detect.getInspection();
         this.author = author;
         this.comment = comment;
     }

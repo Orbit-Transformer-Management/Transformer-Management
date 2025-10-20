@@ -1,13 +1,8 @@
 package com.orbit.Orbit.web;
 
-import com.orbit.Orbit.dto.CommentResponse;
-import com.orbit.Orbit.dto.InspectionRequest;
-import com.orbit.Orbit.dto.InspectionResponse;
-import com.orbit.Orbit.dto.RoboflowResponse;
-import com.orbit.Orbit.model.Inspection;
-import com.orbit.Orbit.model.InspectionComment;
-import com.orbit.Orbit.model.InspectionModelDetects;
-import com.orbit.Orbit.model.Transformer;
+import com.orbit.Orbit.dto.*;
+import com.orbit.Orbit.model.*;
+import com.orbit.Orbit.service.DetectsService;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -24,10 +19,12 @@ public class InspectionController {
 
 
     private final InspectionService inspectionService;
+    private final DetectsService detectsService;
     private String InspectionNumber;
 
-    public InspectionController (InspectionService inspectionService){
+    public InspectionController (InspectionService inspectionService, DetectsService detectsService){
         this.inspectionService = inspectionService;
+        this.detectsService = detectsService;
     }
 
 
@@ -87,21 +84,25 @@ public class InspectionController {
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze")
     public ResponseEntity<List<InspectionModelDetects>> analyzeImage(@PathVariable String inspectionNumber) {
-        List<InspectionModelDetects> detections = inspectionService.getPredictions(inspectionNumber);
+        List<InspectionModelDetects> detections = detectsService.get(inspectionNumber);
         return ResponseEntity.ok(detections);
     }
 
-//    @PutMapping("/api/v1/inspections/{inspectionNumber}/analyze")
-//    public ResponseEntity<RoboflowResponse> updatePrediction(
-//            @PathVariable String inspectionNumber,
-//            @RequestBody RoboflowResponse prediction) {
-//
-//        // Save the provided prediction JSON to DB
-//        inspectionService.updatePrediction(inspectionNumber, prediction);
-//
-//        // Return it back
-//        return ResponseEntity.ok(prediction);
-//    }
+    @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze/timeline")
+    public ResponseEntity<List<InspectionDetectsTimeline>> getTimeline(@PathVariable String inspectionNumber) {
+        List<InspectionDetectsTimeline> detections = detectsService.timelineget(inspectionNumber);
+        return ResponseEntity.ok(detections);
+    }
+
+    @PutMapping("/api/v1/inspections/analyze/{detectId}")
+    public ResponseEntity<InspectionModelDetects> updatePrediction(
+            @PathVariable String detectId,
+            @RequestBody UpdateDetectionRequest req) {
+
+        InspectionModelDetects updated = detectsService.update(req,detectId);
+        // Return it back
+        return ResponseEntity.ok(updated);
+    }
 
 
 
