@@ -39,7 +39,7 @@ interface UploadProgress {
   type: "thermal" | "baseline";
 }
 interface Prediction {
-  id?: string;
+  detectId?: number; // Backend ID for edit/delete
   x: number;
   y: number;
   width: number;
@@ -63,12 +63,12 @@ interface InspectorComment {
 }
 
 interface AnnotationEntry {
-  id: string;
-  action: "Add" | "Edit" | "Delete";
+  anotationId: number; // Backend ID from InspectionDetectsTimeline
+  type: string; // "add" | "edit" | "delete"
   comment: string;
-  user: string;
-  timestamp: string; // ISO
-  details?: string;
+  author: string;
+  createdAt: string; // ISO
+  faultName?: string; // Fault name from the bounding box
 }
 
 const INITIAL_ZOOM = 1;
@@ -83,6 +83,14 @@ const formatDateTime = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+// Utility to clear localStorage for an inspection (useful when backend is fixed)
+const clearInspectionLocalStorage = (inspectionNo: string) => {
+  localStorage.removeItem(`addedDetectIds_${inspectionNo}`);
+  localStorage.removeItem(`deletedDetectIds_${inspectionNo}`);
+  localStorage.removeItem(`localTimeline_${inspectionNo}`);
+  console.log("🗑️ Cleared localStorage for inspection:", inspectionNo);
+};
 
 /* ------------------------ ImageDisplayCard (memoized) ----------------------- */
 
@@ -416,7 +424,7 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
                 if (isEditingThis && editCssBox) {
                   return (
                     <Rnd
-                      key={pred.id ?? idx}
+                      key={pred.detectId ?? idx}
                       bounds="parent"
                       size={{ width: editCssBox.width, height: editCssBox.height }}
                       position={{ x: editCssBox.left, y: editCssBox.top }}
@@ -462,7 +470,7 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
 
                 return (
                   <div
-                    key={pred.id ?? idx}
+                    key={pred.detectId ?? idx}
                     className={`absolute text-xs ${selectable ? "cursor-pointer" : "pointer-events-none"}`}
                     style={{
                       left,
@@ -552,6 +560,7 @@ const InspectionUploadPage = () => {
   });
 
   const [thermalPredictions, setThermalPredictions] = useState<Prediction[]>([]);
+  const thermalPredictionsRef = useRef<Prediction[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   // Delete mode state
   const [deleteMode, setDeleteMode] = useState(false);
@@ -565,6 +574,73 @@ const InspectionUploadPage = () => {
   const [editCommentOpen, setEditCommentOpen] = useState(false);
   // Session annotations log (Add/Edit/Delete)
   const [annotationsMade, setAnnotationsMade] = useState<AnnotationEntry[]>([]);
+
+  // Track which detectIds were added in this session (workaround for backend bug)
+  const [addedDetectIds, setAddedDetectIds] = useState<Set<number>>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`addedDetectIds_${inspectionNo}`);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
+  
+  const [deletedDetectIds, setDeletedDetectIds] = useState<Set<number>>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`deletedDetectIds_${inspectionNo}`);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
+  
+  // Local timeline entries that backend doesn't save (Add and Delete operations)
+  const [localTimelineEntries, setLocalTimelineEntries] = useState<AnnotationEntry[]>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`localTimeline_${inspectionNo}`);
+    return stored ? JSON.parse(stored) : [];
+  });
+  
+  // Use ref to track latest localTimelineEntries for fetchAnnotations
+  const localTimelineEntriesRef = useRef(localTimelineEntries);
+  useEffect(() => {
+    localTimelineEntriesRef.current = localTimelineEntries;
+  }, [localTimelineEntries]);
+
+  // Use ref to track latest thermalPredictions for fetchAnnotations
+  useEffect(() => {
+    thermalPredictionsRef.current = thermalPredictions;
+  }, [thermalPredictions]);
+
+  // Persist to localStorage whenever these change
+  useEffect(() => {
+    if (inspectionNo) {
+      localStorage.setItem(`addedDetectIds_${inspectionNo}`, JSON.stringify([...addedDetectIds]));
+      console.log("💾 Saved addedDetectIds to localStorage:", [...addedDetectIds]);
+    }
+  }, [addedDetectIds, inspectionNo]);
+
+  useEffect(() => {
+    if (inspectionNo) {
+      localStorage.setItem(`deletedDetectIds_${inspectionNo}`, JSON.stringify([...deletedDetectIds]));
+      console.log("💾 Saved deletedDetectIds to localStorage:", [...deletedDetectIds]);
+    }
+  }, [deletedDetectIds, inspectionNo]);
+
+  useEffect(() => {
+    if (inspectionNo) {
+      localStorage.setItem(`localTimeline_${inspectionNo}`, JSON.stringify(localTimelineEntries));
+      console.log("💾 Saved localTimeline to localStorage:", localTimelineEntries.length, "entries");
+    }
+  }, [localTimelineEntries, inspectionNo]);
+
+  // Load from localStorage on component mount
+  useEffect(() => {
+    if (inspectionNo) {
+      const storedAdded = localStorage.getItem(`addedDetectIds_${inspectionNo}`);
+      const storedDeleted = localStorage.getItem(`deletedDetectIds_${inspectionNo}`);
+      const storedTimeline = localStorage.getItem(`localTimeline_${inspectionNo}`);
+      
+      console.log("📂 Loaded from localStorage:");
+      console.log("  - addedDetectIds:", storedAdded ? JSON.parse(storedAdded).length : 0);
+      console.log("  - deletedDetectIds:", storedDeleted ? JSON.parse(storedDeleted).length : 0);
+      console.log("  - localTimeline:", storedTimeline ? JSON.parse(storedTimeline).length : 0, "entries");
+    }
+  }, [inspectionNo]);
 
   // User annotation/draw state (Step 1 - Add)
   const [isAddMode, setIsAddMode] = useState(false);
@@ -608,16 +684,6 @@ type InspectionModelDetects = {
   parentId?: string | null;
 };
 
-type Prediction = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  confidence: number;
-  label: string; // "f", "pf", etc.
-  tag: string;   // "Error 1", "Fault 1", "Normal", etc.
-};
-
 const fetchPredictions = async () => {
   if (!inspectionNo) return;
   try {
@@ -630,20 +696,43 @@ const fetchPredictions = async () => {
     let errorCount = 0;
     let faultCount = 0;
 
-    const detections: Prediction[] = (data || []).map((det) => {
-      const label = (det.className ?? "").trim();
-      let tag = "Normal";
+    // Filter out deleted detections first (backend bug workaround)
+    const filteredData = (data || []).filter((det) => {
+      if (deletedDetectIds.has(det.detectId)) {
+        console.log(`🗑️ Filtering out deleted detectId ${det.detectId} from predictions`);
+        return false;
+      }
+      return true;
+    });
 
-      // adjust these conditions to your actual class labels if needed
-      if (label.toLowerCase() === "f") {
-        errorCount += 1;
-        tag = `Error ${errorCount}`;
-      } else if (label.toLowerCase() === "pf") {
-        faultCount += 1;
-        tag = `Fault ${faultCount}`;
+    console.log(`📊 Loaded ${data?.length || 0} predictions from backend, ${filteredData.length} after filtering deleted`);
+
+    const detections: Prediction[] = filteredData.map((det) => {
+      const label = (det.className ?? "").trim();
+      
+      // Check if this detection already exists in current predictions with a custom name
+      const existing = thermalPredictions.find(p => p.detectId === det.detectId);
+      
+      let tag: string;
+      if (existing && existing.tag) {
+        // Preserve the existing custom name (user-entered or previously set)
+        tag = existing.tag;
+        console.log(`✅ Preserving custom name "${tag}" for detectId ${det.detectId}`);
+      } else {
+        // New detection from backend - use auto-generated name
+        if (label.toLowerCase() === "f") {
+          errorCount += 1;
+          tag = `Error ${errorCount}`;
+        } else if (label.toLowerCase() === "pf") {
+          faultCount += 1;
+          tag = `Fault ${faultCount}`;
+        } else {
+          tag = "Normal";
+        }
       }
 
       return {
+        detectId: det.detectId,
         x: det.x,
         y: det.y,
         width: det.width,
@@ -707,6 +796,163 @@ const fetchPredictions = async () => {
     }
   }, [inspectionNo]);
 
+  // === Fetch Annotations Timeline ===
+  const fetchAnnotations = useCallback(async () => {
+    if (!inspectionNo) return;
+    try {
+      console.log("📥 Fetching annotations timeline for inspection:", inspectionNo);
+      const res = await axios.get(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze/timeline`
+      );
+      const backendList = Array.isArray(res.data) ? res.data : [];
+      console.log("✅ Backend timeline received:", backendList.length, "entries");
+      
+      // Filter backend entries for deleted detections
+      // Keep historical entries (Add/Edit from before deletion)
+      // Filter out ONLY the most recent "edit" entry if it matches the delete comment (backend bug)
+      const filteredBackendList = backendList.filter((entry: any) => {
+        const detectId = entry.detect?.detectId;
+        
+        if (detectId && deletedDetectIds.has(detectId)) {
+          // This detection was deleted
+          // Backend bug: it creates an "edit" entry when deleting
+          // Keep historical entries (Add/Edit from before deletion)
+          // Filter out only the fake "edit" entry that was created during delete
+          
+          if (entry.type === "edit") {
+            // Check if this is the fake edit created during delete
+            // Find the local delete entry for this detectId
+            const localDeleteEntry = localTimelineEntriesRef.current.find(
+              (local) => local.type === "delete" && local.anotationId === Date.now()
+            );
+            
+            // If this edit entry has the same comment as our delete entry and similar timestamp,
+            // it's likely the fake entry created by the backend bug
+            const hasMatchingDeleteEntry = localTimelineEntriesRef.current.some(
+              (local) => {
+                if (local.type !== "delete") return false;
+                
+                const backendComment = (entry.comment || "").trim();
+                const localComment = (local.comment || "").trim();
+                
+                // Match by comment
+                if (backendComment === localComment) {
+                  // Also check timestamps are close (within 10 seconds)
+                  const backendTime = new Date(entry.createdAt).getTime();
+                  const localTime = new Date(local.createdAt).getTime();
+                  const timeDiff = Math.abs(backendTime - localTime);
+                  
+                  if (timeDiff < 10000) {
+                    console.log(`🗑️ Filtering out fake "edit" entry for deleted detectId ${detectId} (matched by comment & time)`);
+                    return true;
+                  }
+                }
+                
+                return false;
+              }
+            );
+            
+            if (hasMatchingDeleteEntry) {
+              return false; // Filter out this fake edit
+            }
+          }
+          
+          // Keep all other entries (historical Add/Edit entries from before deletion)
+          console.log(`✅ Keeping historical "${entry.type}" entry for deleted detectId ${detectId}`);
+        }
+        
+        return true;
+      });
+      
+      console.log("✅ Backend timeline after filtering:", filteredBackendList.length, "entries");
+      
+      // Group backend entries by detectId and type to understand what we have
+      const backendEntriesByDetectId = new Map<number, Set<string>>();
+      filteredBackendList.forEach((entry: any) => {
+        const detectId = entry.detect?.detectId;
+        if (detectId) {
+          if (!backendEntriesByDetectId.has(detectId)) {
+            backendEntriesByDetectId.set(detectId, new Set());
+          }
+          backendEntriesByDetectId.get(detectId)!.add(entry.type || "");
+        }
+      });
+      
+      // Keep local "Add" entries ONLY if backend doesn't have an "add" type for that detectId
+      // This allows both Add and Edit entries to coexist for the same detectId
+      const relevantLocalEntries = localTimelineEntriesRef.current.filter((local) => {
+        const detectId = local.anotationId;
+        const backendTypes = backendEntriesByDetectId.get(detectId);
+        
+        if (local.type === "add" && backendTypes?.has("add")) {
+          // Backend has saved the Add entry, remove local duplicate
+          console.log(`⚠️ Backend has "add" entry for detectId ${detectId}, removing local duplicate`);
+          return false;
+        }
+        
+        // Keep all other local entries (Add without backend, Delete, etc.)
+        return true;
+      });
+      
+      console.log("✅ Local timeline entries:", relevantLocalEntries.length);
+      
+      // Merge backend and local entries, sort by timestamp (newest first)
+      const mergedList = [
+        ...relevantLocalEntries,
+        ...filteredBackendList.map((entry: any) => {
+          // Extract fault name from detect object if available
+          const detectId = entry.detect?.detectId;
+          let faultName: string | undefined;
+          
+          if (detectId) {
+            // Try to find matching prediction to get the fault name
+            const matchingPrediction = thermalPredictionsRef.current.find(p => p.detectId === detectId);
+            if (matchingPrediction) {
+              faultName = matchingPrediction.tag;
+            } else {
+              // If no matching prediction, use className from backend
+              const className = entry.detect?.className;
+              if (className) {
+                faultName = className === "pf" ? "Potential Fault" : className === "f" ? "Fault" : "Normal";
+              }
+            }
+          }
+          
+          return {
+            ...entry,
+            faultName
+          };
+        })
+      ].sort((a, b) => {
+        // Ensure we have valid timestamps
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        
+        // Sort descending (newest first)
+        const result = dateB - dateA;
+        
+        if (result !== 0) {
+          return result;
+        }
+        
+        // If timestamps are equal, sort by type priority: Delete > Edit > Add
+        const typePriority: { [key: string]: number } = { delete: 3, edit: 2, add: 1 };
+        const priorityA = typePriority[a.type] || 0;
+        const priorityB = typePriority[b.type] || 0;
+        return priorityB - priorityA;
+      });
+      
+      console.log("✅ Total merged timeline entries:", mergedList.length);
+      console.log("📊 Timeline sorted (newest first):", mergedList.map(e => `${e.type} @ ${e.createdAt}`));
+      
+      setAnnotationsMade(mergedList);
+    } catch (err) {
+      console.error("❌ Failed to fetch annotations timeline:", err);
+      // Still show local entries even if backend fails
+      setAnnotationsMade(localTimelineEntriesRef.current);
+    }
+  }, [inspectionNo, deletedDetectIds]);
+
   // === Load inspection + images ===
   useEffect(() => {
     const fetchInspectionData = async () => {
@@ -763,7 +1009,8 @@ const fetchPredictions = async () => {
 
   useEffect(() => {
     fetchComments();
-  }, [fetchComments]);
+    fetchAnnotations();
+  }, [fetchComments, fetchAnnotations]);
 
   // === Upload ===
   const uploadImage = async (
@@ -918,7 +1165,7 @@ const fetchPredictions = async () => {
   const submitEditComment = async (comment: string) => {
     if (editSelectedIndex == null || !inspectionNo) return;
     const original = thermalPredictions[editSelectedIndex];
-    if (!original || !editDraft) return;
+    if (!original || !editDraft || !original.detectId) return;
 
     setIsSubmittingEditComment(true);
 
@@ -936,53 +1183,45 @@ const fetchPredictions = async () => {
     };
     setThermalPredictions((prev) => prev.map((p, i) => (i === editSelectedIndex ? updated : p)));
 
-    const timestamp = new Date().toISOString();
     const classId = updated.label === "pf" ? 2 : updated.label === "f" ? 1 : 0;
     const payload = {
-      id: updated.id ?? original.id,
-      annotation_type: "Edit",
       width: updated.width,
       height: updated.height,
       x: updated.x,
       y: updated.y,
       confidence: updated.confidence,
-      class_id: classId,
-      class: updated.label,
-      parent_id: "image",
-      user: "Shaveen",
-      timestamp,
-      tag: updated.tag,
+      classId: classId,
+      className: updated.label,
+      parentId: "image",
+      author: "Shaveen",
       comment,
-      // previous values for audit (optional fields)
-      prev_width: original.width,
-      prev_height: original.height,
-      prev_x: original.x,
-      prev_y: original.y,
-      prev_confidence: original.confidence,
-      prev_class: original.label,
-      prev_tag: original.tag,
-    } as const;
-
-    // Log to local session list immediately
-    setAnnotationsMade((prev) => [
-      {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-        action: "Edit",
-        comment,
-        user: "Shaveen",
-        timestamp,
-        details: `Edited ${original.tag ?? "box"}`,
-      },
-      ...prev,
-    ]);
+      faultName: updated.tag // Send fault name to backend
+    };
 
     try {
-      await axios.post(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/annotations`,
+      // CRITICAL: Backend repository expects String ID, but model has Long detectId
+      // Convert detectId to String for the URL
+      const detectIdStr = String(original.detectId);
+      console.log("📤 Sending EDIT request for detectId:", detectIdStr, "(converted from", original.detectId, ")");
+      console.log("📤 EDIT payload with fault name:", payload);
+      
+      const response = await axios.put(
+        `http://localhost:8080/api/v1/inspections/analyze/${detectIdStr}`,
         payload
       );
+      console.log("✅ EDIT response:", response.data);
+      // Refresh predictions and timeline to show the edit entry properly sorted
+      await fetchPredictions();
+      await fetchAnnotations();
+      
+      // Refresh the page immediately
+      window.location.reload();
     } catch (e1) {
-      console.warn("Edit save failed.", e1);
+      console.error("❌ Edit save failed:", e1);
+      if (axios.isAxiosError(e1)) {
+        console.error("❌ Error details:", e1.response?.data);
+        console.error("❌ Error status:", e1.response?.status);
+      }
     } finally {
       setIsSubmittingEditComment(false);
       setEditSelectedIndex(null);
@@ -995,56 +1234,110 @@ const fetchPredictions = async () => {
   const submitDeleteComment = async (comment: string) => {
     if (deleteTargetIndex == null || !inspectionNo) return;
     const target = thermalPredictions[deleteTargetIndex];
+    
+    console.log("🔍 Delete target:", target);
+    console.log("🔍 Delete target detectId:", target.detectId, "Type:", typeof target.detectId);
+    
+    if (!target.detectId) {
+      console.error("❌ Cannot delete: detectId is missing!");
+      alert("Cannot delete: Detection ID is missing. Please refresh the page and try again.");
+      setDeleteTargetIndex(null);
+      setDeleteMode(false);
+      setIsSubmittingDeleteComment(false);
+      return;
+    }
+    
     setIsSubmittingDeleteComment(true);
 
-    // Optimistically remove from UI first
-    setThermalPredictions((prev) => prev.filter((_, i) => i !== deleteTargetIndex));
-    setDeleteTargetIndex(null);
-    setDeleteMode(false);
+    // Immediately remove from UI (optimistic update)
+    setThermalPredictions(prev => prev.filter((_, i) => i !== deleteTargetIndex));
 
-    const timestamp = new Date().toISOString();
+    // Track as deleted (persists in localStorage)
+    if (target.detectId) {
+      setDeletedDetectIds(prev => new Set(prev).add(target.detectId!));
+      
+      // Create a local timeline entry for Delete
+      const now = new Date().toISOString();
+      const localEntry: AnnotationEntry = {
+        anotationId: Date.now(), // Temporary ID
+        type: "delete",
+        comment: comment,
+        author: "Shaveen",
+        createdAt: now,
+        faultName: target.tag || "Unknown"
+      };
+      
+      // Add to local timeline entries and sort immediately
+      setLocalTimelineEntries(prev => {
+        const updated = [localEntry, ...prev];
+        // Sort by timestamp immediately (newest first)
+        return updated.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+      });
+      console.log("✅ Created local timeline entry for Delete operation:", localEntry);
+    }
+
+    // ⚠️ BACKEND DELETE IS BROKEN - See BACKEND_FIXES_NEEDED.md
+    // Backend has type mismatch: Repository expects String but Model has Long detectId
+    // This causes 500 Internal Server Error when trying to delete
+    // Solution: Frontend-only delete until backend is fixed
+    
+    console.warn("⚠️ Backend DELETE endpoint is broken (type mismatch bug)");
+    console.warn("⚠️ Detection removed from UI only - backend database still has it");
+    console.warn("⚠️ See BACKEND_FIXES_NEEDED.md for fix instructions");
+    
+    // Try to call backend anyway (will likely fail, but won't affect UI)
     const classId = target.label === "pf" ? 2 : target.label === "f" ? 1 : 0;
     const payload = {
-      id: target.id,
-      annotation_type: "Delete",
       width: target.width,
       height: target.height,
       x: target.x,
       y: target.y,
       confidence: target.confidence,
-      class_id: classId,
-      class: target.label,
-      parent_id: "image",
-      user: "Shaveen",
-      timestamp,
-      tag: target.tag,
+      classId: classId,
+      className: target.label,
+      parentId: "image",
+      author: "Shaveen",
       comment,
-    } as const;
-
-    // Log to local session list immediately
-    setAnnotationsMade((prev) => [
-      {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-        action: "Delete",
-        comment,
-        user: "Shaveen",
-        timestamp,
-        details: `Deleted ${target?.tag ?? "box"}`,
-      },
-      ...prev,
-    ]);
+      faultName: target.tag || "Unknown" // Send fault name to backend
+    };
 
     try {
-      // Try primary endpoint
-      await axios.post(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/annotations`,
-        payload
+      const detectIdStr = String(target.detectId);
+      console.log("📤 Attempting DELETE request for detectId:", detectIdStr);
+      console.log("📤 DELETE payload with fault name:", payload);
+      
+      const response = await axios.delete(
+        `http://localhost:8080/api/v1/inspections/analyze/${detectIdStr}`,
+        { 
+          data: payload,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
       );
+      console.log("✅ DELETE succeeded (unexpected!):", response.status, response.data);
     } catch (e1) {
-      console.warn("Delete save failed.", e1);
-    } finally {
-      setIsSubmittingDeleteComment(false);
+      console.warn("⚠️ Backend DELETE failed (expected due to type mismatch bug):", 
+        axios.isAxiosError(e1) ? e1.response?.data : e1);
+      // DON'T show error alert - this is expected
+      console.log("✅ Detection removed from UI, will stay removed via deletedDetectIds filter");
     }
+    
+    // Refresh annotations timeline to show the delete entry
+    await fetchAnnotations();
+    
+    // Refresh the page immediately
+    window.location.reload();
+    
+    // Note: The cleanup code below won't execute after reload, but that's fine since the page will be fresh
+    // Reset UI state
+    setDeleteTargetIndex(null);
+    setDeleteMode(false);
+    setIsSubmittingDeleteComment(false);
   };
 
   // When user finishes drawing a rect on the thermal image
@@ -1079,7 +1372,7 @@ const fetchPredictions = async () => {
       annoConditionType === "Faulty" ? "pf" : annoConditionType === "Potential Faulty" ? "f" : "normal";
     const confidenceFraction = Math.max(0, Math.min(100, confVal)) / 100;
 
-    // Update the list/overlays immediately
+    // Update the list/overlays immediately with fault name
     setThermalPredictions((prev) => [
       ...prev,
       {
@@ -1089,7 +1382,7 @@ const fetchPredictions = async () => {
         height: pendingRect.height,
         confidence: confidenceFraction,
         label,
-        tag: name,
+        tag: name, // This is the user-entered fault name
       },
     ]);
 
@@ -1109,42 +1402,86 @@ const fetchPredictions = async () => {
       const classId = cls === "pf" ? 2 : cls === "f" ? 1 : 0;
       const confidencePercent = Math.max(0, Math.min(100, parseFloat(annoConfidence) || 0));
       const confidence = confidencePercent / 100;
-      const timestamp = new Date().toISOString();
 
       const payload = {
-        annotation_type: "Add",
         width: pendingRect.width,
         height: pendingRect.height,
         x: pendingRect.x,
         y: pendingRect.y,
         confidence,
-        class_id: classId,
-        class: cls,
-        parent_id: "image",
-        user: "Shaveen",
-        timestamp,
-        tag: annoFaultName.trim(),
+        classId: classId,
+        className: cls,
+        parentId: "image",
+        author: "Shaveen",
         comment,
-      } as const;
+        faultName: annoFaultName.trim() // Send fault name to backend
+      };
 
-      // Log to local session list immediately
-      setAnnotationsMade((prev) => [
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-          action: "Add",
-          comment,
-          user: "Shaveen",
-          timestamp,
-          details: `Added ${payload.tag} (${annoConditionType}, ${confidencePercent}%)`,
-        },
-        ...prev,
-      ]);
-      await axios.post(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/annotations`,
+      console.log("📤 Sending ADD request with fault name:", payload);
+      const response = await axios.post(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`,
         payload
       );
+      console.log("✅ ADD response:", response.data);
+
+      // Update the last added prediction with the detectId from response
+      if (response.data?.detectId) {
+        console.log("✅ Setting detectId:", response.data.detectId);
+        console.log("✅ Fault name from form:", annoFaultName.trim());
+        
+        const detectId = response.data.detectId;
+        const now = new Date().toISOString();
+        
+        // Track this as an added detectId (workaround for backend bug)
+        setAddedDetectIds(prev => new Set(prev).add(detectId));
+        
+        // Create a local timeline entry since backend doesn't save Add operations
+        // Use the fault name entered by the user in the details modal
+        const localEntry: AnnotationEntry = {
+          anotationId: detectId, // Use detectId as temporary ID
+          type: "add",
+          comment: comment,
+          author: "Shaveen",
+          createdAt: now,
+          faultName: annoFaultName.trim() // This is the user-entered fault name from the modal
+        };
+        
+        // Add to local timeline entries
+        setLocalTimelineEntries(prev => {
+          const updated = [localEntry, ...prev];
+          // Sort by timestamp immediately (newest first)
+          return updated.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
+          });
+        });
+        console.log("✅ Created local timeline entry for Add operation:", localEntry);
+        
+        setThermalPredictions((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            updated[updated.length - 1].detectId = detectId;
+            console.log("✅ Updated prediction with detectId:", updated[updated.length - 1]);
+          }
+          return updated;
+        });
+      } else {
+        console.warn("⚠️ No detectId in response!");
+      }
+
+      // Refresh predictions and timeline to show the new entry properly sorted
+      await fetchPredictions();
+      await fetchAnnotations();
+      
+      // Refresh the page immediately
+      window.location.reload();
     } catch (err) {
-      console.warn("Saving annotation failed. UI kept in sync.", err);
+      console.error("❌ Saving annotation failed:", err);
+      if (axios.isAxiosError(err)) {
+        console.error("❌ Error details:", err.response?.data);
+      }
+      alert("Failed to save annotation. Check console for details.");
     } finally {
       setSavingAnnotation(false);
       resetAnnoState();
@@ -1601,7 +1938,7 @@ const fetchPredictions = async () => {
           <div className="p-6">
             {annotationsMade.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-600 font-semibold">
-                No annotations have been made in this session.
+                No annotations have been made yet.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1609,31 +1946,30 @@ const fetchPredictions = async () => {
                   <thead>
                     <tr className="text-gray-600">
                       <th className="px-4 py-2 text-base">Change</th>
+                      <th className="px-4 py-2 text-base">Fault Name</th>
                       <th className="px-4 py-2 text-base">Comment</th>
                       <th className="px-4 py-2 text-base">User</th>
                       <th className="px-4 py-2 text-base">Timestamp</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {annotationsMade.map((a) => (
-                      <tr key={a.id} className="border-t">
+                    {annotationsMade.map((a, idx) => (
+                      <tr key={a.anotationId || `local-${idx}`} className="border-t">
                         <td className="px-4 py-3 align-top">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold ${
-                            a.action === "Add"
+                            a.type.toLowerCase() === "add"
                               ? "bg-blue-100 text-blue-700"
-                              : a.action === "Edit"
+                              : a.type.toLowerCase() === "edit"
                               ? "bg-amber-100 text-amber-800"
                               : "bg-red-100 text-red-700"
                           }`}>
-                            {a.action}
+                            {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
                           </span>
-                          {a.details && (
-                            <div className="mt-1 text-gray-800 text-base">{a.details}</div>
-                          )}
                         </td>
+                        <td className="px-4 py-3 text-gray-800 text-base font-medium">{a.faultName || "—"}</td>
                         <td className="px-4 py-3 text-gray-800 text-base whitespace-pre-wrap">{a.comment || "—"}</td>
-                        <td className="px-4 py-3 text-gray-900 font-semibold text-base">{a.user}</td>
-                        <td className="px-4 py-3 text-gray-700 text-base">{formatDateTime(a.timestamp)}</td>
+                        <td className="px-4 py-3 text-gray-900 font-semibold text-base">{a.author}</td>
+                        <td className="px-4 py-3 text-gray-700 text-base">{formatDateTime(a.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>
