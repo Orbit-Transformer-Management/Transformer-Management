@@ -20,6 +20,9 @@ import {
   Trash2,
   Loader2,
   Save,
+  Download,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import axios from "axios";
 import { Rnd } from "react-rnd";
@@ -83,6 +86,55 @@ const formatDateTime = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+// Export annotations to CSV
+const exportAnnotationsToCSV = (annotations: AnnotationEntry[], inspectionNo: string) => {
+  if (annotations.length === 0) {
+    alert("No annotations to export!");
+    return;
+  }
+
+  // Define CSV headers
+  const headers = ["Change Type", "Fault Name", "Comment", "User", "Timestamp"];
+  
+  // Convert annotations to CSV rows
+  const rows = annotations.map((a) => {
+    return [
+      a.type.charAt(0).toUpperCase() + a.type.slice(1),
+      a.faultName || "—",
+      a.comment || "—",
+      a.author,
+      formatDateTime(a.createdAt)
+    ].map(field => {
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      const escaped = String(field).replace(/"/g, '""');
+      return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') 
+        ? `"${escaped}"` 
+        : escaped;
+    });
+  });
+
+  // Combine headers and rows
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  // Create blob and download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `inspection_${inspectionNo}_annotations_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
 
 // Utility to clear localStorage for an inspection (useful when backend is fixed)
 const clearInspectionLocalStorage = (inspectionNo: string) => {
@@ -574,6 +626,12 @@ const InspectionUploadPage = () => {
   const [editCommentOpen, setEditCommentOpen] = useState(false);
   // Session annotations log (Add/Edit/Delete)
   const [annotationsMade, setAnnotationsMade] = useState<AnnotationEntry[]>([]);
+  
+  // Collapsible state for annotations table
+  const [isAnnotationsExpanded, setIsAnnotationsExpanded] = useState(false);
+  
+  // Collapsible state for comments section
+  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
 
   // Track which detectIds were added in this session (workaround for backend bug)
   const [addedDetectIds, setAddedDetectIds] = useState<Set<number>>(() => {
@@ -1932,193 +1990,311 @@ const fetchPredictions = async () => {
       <section className="mt-8">
         <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-3xl font-bold tracking-tight text-red-700">Annotations Made</h3>
-            <span className="text-sm text-gray-500">{annotationsMade.length} change{annotationsMade.length !== 1 ? "s" : ""}</span>
-          </div>
-          <div className="p-6">
-            {annotationsMade.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-600 font-semibold">
-                No annotations have been made yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left">
-                  <thead>
-                    <tr className="text-gray-600">
-                      <th className="px-4 py-2 text-base">Change</th>
-                      <th className="px-4 py-2 text-base">Fault Name</th>
-                      <th className="px-4 py-2 text-base">Comment</th>
-                      <th className="px-4 py-2 text-base">User</th>
-                      <th className="px-4 py-2 text-base">Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {annotationsMade.map((a, idx) => (
-                      <tr key={a.anotationId || `local-${idx}`} className="border-t">
-                        <td className="px-4 py-3 align-top">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold ${
-                            a.type.toLowerCase() === "add"
-                              ? "bg-blue-100 text-blue-700"
-                              : a.type.toLowerCase() === "edit"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-red-100 text-red-700"
-                          }`}>
-                            {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-800 text-base font-medium">{a.faultName || "—"}</td>
-                        <td className="px-4 py-3 text-gray-800 text-base whitespace-pre-wrap">{a.comment || "—"}</td>
-                        <td className="px-4 py-3 text-gray-900 font-semibold text-base">{a.author}</td>
-                        <td className="px-4 py-3 text-gray-700 text-base">{formatDateTime(a.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsAnnotationsExpanded(!isAnnotationsExpanded)}
+                className="p-2 bg-gray-700 hover:bg-gray-800 rounded-xl transition-colors shadow-sm"
+                title={isAnnotationsExpanded ? "Collapse" : "Expand"}
+              >
+                {isAnnotationsExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-white" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-white" />
+                )}
+              </button>
+              <h3 className="text-3xl font-bold tracking-tight text-red-700">Annotations Made</h3>
+              <span className="text-sm text-gray-500">{annotationsMade.length} change{annotationsMade.length !== 1 ? "s" : ""}</span>
+            </div>
+            {annotationsMade.length > 0 && (
+              <button
+                onClick={() => exportAnnotationsToCSV(annotationsMade, inspectionNo || "")}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors shadow-sm"
+                title="Download annotations as CSV"
+              >
+                <Download className="h-5 w-5" />
+                Download as CSV
+              </button>
             )}
           </div>
+          {isAnnotationsExpanded && (
+            <div className="p-6">
+              {annotationsMade.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+                  <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Tag className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-600">No annotations have been made yet.</p>
+                  <p className="text-sm text-gray-500 mt-1">Annotations will appear here when you add, edit, or delete detections.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-6">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b-2 border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Change Type</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Fault Name</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Comment</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {annotationsMade.map((a, idx) => (
+                        <tr 
+                          key={a.anotationId || `local-${idx}`} 
+                          className="hover:bg-gray-50 transition-colors duration-150"
+                        >
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-2.5 rounded-full px-5 py-2 text-lg font-semibold shadow-sm ${
+                              a.type.toLowerCase() === "add"
+                                ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                                : a.type.toLowerCase() === "edit"
+                                ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                                : "bg-red-50 text-red-700 ring-1 ring-red-200"
+                            }`}>
+                              {a.type.toLowerCase() === "add" && (
+                                <span className="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                              )}
+                              {a.type.toLowerCase() === "edit" && (
+                                <span className="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                              )}
+                              {a.type.toLowerCase() === "delete" && (
+                                <span className="h-2.5 w-2.5 rounded-full bg-red-500"></span>
+                              )}
+                              {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {a.faultName || <span className="text-gray-400">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <div className="max-w-2xl">
+                              <p className="text-xl text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                {a.comment || <span className="text-gray-400 italic">No comment</span>}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                {a.author.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-xl font-medium text-gray-900">{a.author}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-lg font-medium text-gray-900">
+                                {new Date(a.createdAt).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })}
+                              </span>
+                              <span className="text-base text-gray-500">
+                                {new Date(a.createdAt).toLocaleTimeString('en-US', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Analysis */}
+      {/* Detected Issues */}
       <section className="mt-10">
         <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-3xl font-bold tracking-tight text-red-600">
-              Model Detected Issues
-            </h3>
-            {!isAnalyzing && (
-              <span className="text-sm text-gray-500">
-                {thermalPredictions.length} item
-                {thermalPredictions.length !== 1 ? "s" : ""}
-              </span>
-            )}
+            <div className="flex items-center gap-4">
+              <h3 className="text-3xl font-bold tracking-tight text-red-600">
+                Detected Issues
+              </h3>
+              {!isAnalyzing && (
+                <span className="text-sm text-gray-500">
+                  {thermalPredictions.length} item
+                  {thermalPredictions.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="p-6">
-            {isAnalyzing ? (
-              <p className="text-blue-700 text-lg font-semibold">Analyzing…</p>
-            ) : thermalPredictions.length > 0 ? (
-              <ul className="space-y-3">
-                {thermalPredictions.map((pred, idx) => {
-                  const isFault = pred.label === "pf";
-                  const isError = pred.label === "f";
-                  const statusText = isFault
-                    ? "Faulty"
-                    : isError
-                    ? "Potentially Faulty"
-                    : "Normal";
+              {isAnalyzing ? (
+                <p className="text-blue-700 text-lg font-semibold">Analyzing…</p>
+              ) : thermalPredictions.length > 0 ? (
+                <ul className="space-y-3">
+                  {thermalPredictions.map((pred, idx) => {
+                    const isFault = pred.label === "pf";
+                    const isError = pred.label === "f";
+                    const statusText = isFault
+                      ? "Faulty"
+                      : isError
+                      ? "Potentially Faulty"
+                      : "Normal";
 
-                  const wrapperClasses = isFault
-                    ? "from-red-50 to-rose-50 border-red-200"
-                    : isError
-                    ? "from-amber-50 to-yellow-50 border-amber-200"
-                    : "from-emerald-50 to-green-50 border-emerald-200";
+                    const wrapperClasses = isFault
+                      ? "from-red-50 to-rose-50 border-red-200"
+                      : isError
+                      ? "from-amber-50 to-yellow-50 border-amber-200"
+                      : "from-emerald-50 to-green-50 border-emerald-200";
 
-                  return (
-                    <li
-                      key={idx}
-                      className={`flex items-start gap-4 p-4 rounded-2xl border bg-gradient-to-r ${wrapperClasses} shadow-sm`}
-                    >
-                      <div className="shrink-0 mt-0.5">
-                        {isFault ? (
-                          <AlertOctagon className="h-6 w-6 text-red-600" />
-                        ) : isError ? (
-                          <AlertTriangle className="h-6 w-6 text-amber-600" />
-                        ) : (
-                          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                        )}
-                      </div>
+                    // Check if this detection was added by inspector (vs AI model)
+                    const isInspectorDetected = pred.detectId ? addedDetectIds.has(pred.detectId) : false;
 
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <span className="text-2xl font-bold text-gray-900">
-                            {pred.tag}
-                          </span>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-2xl font-semibold
-                            ${
-                              isFault
-                                ? "bg-red-100 text-red-700"
-                                : isError
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-emerald-100 text-emerald-800"
-                            }`}
-                          >
-                            {statusText}
-                          </span>
+                    return (
+                      <li
+                        key={idx}
+                        className={`flex items-start gap-4 p-4 rounded-2xl border bg-gradient-to-r ${wrapperClasses} shadow-sm`}
+                      >
+                        <div className="shrink-0 mt-0.5">
+                          {isFault ? (
+                            <AlertOctagon className="h-6 w-6 text-red-600" />
+                          ) : isError ? (
+                            <AlertTriangle className="h-6 w-6 text-amber-600" />
+                          ) : (
+                            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                          )}
                         </div>
 
-                        <p className="mt-1 text-2xl text-gray-700">
-                          Confidence: {(pred.confidence * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                <p className="text-lg font-semibold text-emerald-800">
-                  No issues detected by the model.
-                </p>
-              </div>
-            )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <span className="text-2xl font-bold text-gray-900">
+                              {pred.tag}
+                            </span>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-2xl font-semibold
+                              ${
+                                isFault
+                                  ? "bg-red-100 text-red-700"
+                                  : isError
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
+                              {statusText}
+                            </span>
+                            {/* Source badge */}
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold
+                              ${
+                                isInspectorDetected
+                                  ? "bg-purple-100 text-purple-700 ring-1 ring-purple-200"
+                                  : "bg-blue-100 text-blue-700 ring-1 ring-blue-200"
+                              }`}
+                            >
+                              {isInspectorDetected ? "Inspector Detected" : "Model Generated"}
+                            </span>
+                          </div>
 
-            {/* ---------------------------- Comments block ---------------------------- */}
-            <div className="mt-12">
-              <h4 className="text-2xl md:text-3xl font-bold text-red-600 mb-6 flex items-center gap-3">
+                          <p className="mt-1 text-2xl text-gray-700">
+                            Confidence: {(pred.confidence * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                  <p className="text-lg font-semibold text-emerald-800">
+                    No issues detected by the model.
+                  </p>
+                </div>
+              )}
+            </div>
+        </div>
+      </section>
+
+      {/* Comments by Inspector */}
+      <section className="mt-10">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsCommentsExpanded(!isCommentsExpanded)}
+                className="p-2 bg-gray-700 hover:bg-gray-800 rounded-xl transition-colors shadow-sm"
+                title={isCommentsExpanded ? "Collapse" : "Expand"}
+              >
+                {isCommentsExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-white" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-white" />
+                )}
+              </button>
+              <h3 className="text-3xl font-bold tracking-tight text-red-600">
                 Comments by Inspector
-              </h4>
+              </h3>
+              <span className="text-sm text-gray-500">
+                {comments.length} comment{comments.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
 
-              {comments.length > 0 ? (
-                <div className="relative">
-                  <div className="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-blue-200 via-gray-200 to-transparent hidden sm:block" />
-                  <ul className="space-y-4 mb-10">
+          <div className="p-6">
+            {/* Collapsible Comments List */}
+            {isCommentsExpanded && (
+              <>
+                {comments.length > 0 ? (
+                  <div className="relative mb-10">
+                    <ul className="space-y-5">
                     {comments.map((c, i) => {
                       const isEditing = editingId === (c.id || "");
                       const isSavingThis = savingEditId === (c.id || "");
                       const isDeletingThis = deletingId === (c.id || "");
                       return (
                         <li key={c.id ?? `${c.timestamp}-${i}`} className="relative">
-                          <span className="hidden sm:block absolute -left-0.5 top-5 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
-                          <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-5 py-4 bg-gradient-to-r from-gray-50 to-white">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Tag className="h-5 w-5 text-gray-400 shrink-0" />
+                          <div className="group rounded-xl border border-gray-200 bg-white shadow-lg hover:shadow-xl hover:border-blue-400 transition-all duration-300 overflow-hidden">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-gray-200">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="p-2.5 bg-blue-500 rounded-lg shadow-sm shrink-0">
+                                  <Tag className="h-5 w-5 text-white" />
+                                </div>
                                 {isEditing ? (
                                   <input
                                     value={editTopic}
                                     onChange={(e) => setEditTopic(e.target.value)}
-                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-lg font-semibold focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                    className="w-full rounded-lg border-2 border-blue-300 px-4 py-2.5 text-xl font-bold focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none bg-white shadow-sm"
                                   />
                                 ) : (
-                                  <h5 className="text-lg md:text-2xl font-bold text-black-900 truncate">
+                                  <h5 className="text-xl md:text-2xl font-bold text-gray-900">
                                     {c.topic}
                                   </h5>
                                 )}
                               </div>
 
-                              <div className="flex items-center gap-4 text-lg text-black-600">
-                                <span className="inline-flex items-center gap-1">
-                                  <Clock className="h-6 w-6" />
-                                  <span className="text-xl font-bold">
+                              <div className="flex flex-wrap items-center gap-3">
+                                <div className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg border border-gray-200">
+                                  <Clock className="h-4 w-4 text-gray-600" />
+                                  <span className="text-sm font-semibold text-gray-700">
                                     {formatDateTime(c.timestamp)}
                                   </span>
-                                </span>
+                                </div>
                                 {c.author && (
-                                  <span className="inline-flex items-center gap-2">
-                                    <UserIcon className="h-8 w-8" />
-                                    <span className="text-xl font-bold">{c.author}</span>
-                                  </span>
+                                  <div className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-sm">
+                                    <div className="h-5 w-5 rounded-full bg-white flex items-center justify-center">
+                                      <UserIcon className="h-3 w-3 text-blue-600" />
+                                    </div>
+                                    <span className="text-sm font-bold text-white">{c.author}</span>
+                                  </div>
                                 )}
 
-                                <div className="flex items-center gap-2 ml-2">
+                                <div className="flex items-center gap-2">
                                   {!isEditing ? (
                                     <>
                                       <button
-                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
                                         onClick={() => startEdit(c)}
                                         title="Edit"
                                       >
@@ -2126,7 +2302,7 @@ const fetchPredictions = async () => {
                                         Edit
                                       </button>
                                       <button
-                                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-red-50 ${
+                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-colors ${
                                           isDeletingThis ? "opacity-60 pointer-events-none" : ""
                                         }`}
                                         onClick={() => deleteComment(c.id || "")}
@@ -2135,15 +2311,15 @@ const fetchPredictions = async () => {
                                         {isDeletingThis ? (
                                           <Loader2 className="h-4 w-4 animate-spin" />
                                         ) : (
-                                          <Trash2 className="h-4 w-4 text-white-600" />
+                                          <Trash2 className="h-4 w-4" />
                                         )}
-                                        <span className="text-white-700">Delete</span>
+                                        Delete
                                       </button>
                                     </>
                                   ) : (
                                     <>
                                       <button
-                                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm text-white ${
+                                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm ${
                                           isSavingThis
                                             ? "bg-blue-400 cursor-not-allowed"
                                             : "bg-blue-600 hover:bg-blue-700"
@@ -2160,7 +2336,7 @@ const fetchPredictions = async () => {
                                         Save
                                       </button>
                                       <button
-                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                                         onClick={cancelEdit}
                                         title="Cancel"
                                       >
@@ -2173,20 +2349,20 @@ const fetchPredictions = async () => {
                               </div>
                             </div>
 
-                            <div className="px-5 py-4">
+                            <div className="px-6 py-6 bg-white">
                               {isEditing ? (
                                 <div className="relative">
-                                  <MessageSquareText className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                                  <MessageSquareText className="absolute left-4 top-4 h-6 w-6 text-gray-400" />
                                   <textarea
                                     value={editText}
                                     onChange={(e) => setEditText(e.target.value)}
-                                    className="w-full min-h-36 rounded-2xl border-2 border-gray-200 pl-10 pr-4 py-3
+                                    className="w-full min-h-40 rounded-lg border-2 border-gray-300 pl-12 pr-4 py-4
                                                text-lg leading-relaxed shadow-sm placeholder:text-gray-400
-                                               focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                               focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                                   />
                                 </div>
                               ) : (
-                                <p className="text-xl md:text-2xl leading-relaxed text-gray-800 whitespace-pre-wrap">
+                                <p className="text-lg md:text-xl leading-relaxed text-gray-700 whitespace-pre-wrap">
                                   {c.text}
                                 </p>
                               )}
@@ -2198,16 +2374,23 @@ const fetchPredictions = async () => {
                   </ul>
                 </div>
               ) : (
-                <div className="mb-10 rounded-2xl border border-dashed border-blue-300 bg-blue-50/40 p-8 text-center">
-                  <MessageSquareText className="mx-auto mb-3" />
-                  <p className="text-gray-700 font-semibold">
-                    No Comments yet
+                <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-10 text-center">
+                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
+                    <MessageSquareText className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <p className="text-xl font-bold text-gray-700 mb-1">
+                    No Comments Yet
+                  </p>
+                  <p className="text-base text-gray-500">
+                    Add your first inspection comment below
                   </p>
                 </div>
               )}
+              </>
+            )}
 
-              {/* Composer */}
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6">
+            {/* Composer - Always Visible */}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6">
                 <div className="grid grid-cols-1 gap-5">
                   <div>
                     <label className="block text-lg md:text-2xl font-bold text-gray-800 mb-2">
@@ -2259,7 +2442,6 @@ const fetchPredictions = async () => {
                 </div>
               </div>
               {/* /Composer */}
-            </div>
           </div>
         </div>
       </section>
