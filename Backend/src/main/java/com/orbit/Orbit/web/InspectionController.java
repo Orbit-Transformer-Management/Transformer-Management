@@ -115,8 +115,10 @@ public class InspectionController {
     }
 
     @DeleteMapping("/api/v1/inspections/analyze/{detectId}")
-    public ResponseEntity<Void> deleteDetectionByDetectId(@PathVariable String detectId) {
-        detectsService.deleteByDetectId(detectId); // implement below
+    public ResponseEntity<Void> deleteDetectionByDetectId(
+            @PathVariable String detectId,
+            @RequestBody UpdateDetectionRequest req) {
+        detectsService.deleteByDetectId(req,detectId); // implement below
         return ResponseEntity.noContent().build(); // 204
     }
 
