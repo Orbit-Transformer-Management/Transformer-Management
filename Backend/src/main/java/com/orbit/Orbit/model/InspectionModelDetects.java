@@ -13,6 +13,7 @@ public class InspectionModelDetects {
     @ManyToOne
     @JoinColumn(name = "inspection_number", referencedColumnName = "inspectionNumber")
     private Inspection inspection;
+    private String detectName;
     private double width;
     private double height;
     private double x;
@@ -28,7 +29,7 @@ public class InspectionModelDetects {
 
     }
 
-    public InspectionModelDetects(Long detectId, Inspection inspection, double width, double height, double x, double y, double confidence, int classId, String className, String detectionId, String parentId) {
+    public InspectionModelDetects(Long detectId, Inspection inspection,String detectName, double width, double height, double x, double y, double confidence, int classId, String className, String detectionId, String parentId) {
         this.detectId = detectId;
         this.inspection = inspection;
         this.width = width;
@@ -40,6 +41,7 @@ public class InspectionModelDetects {
         this.className = className;
         this.detectionId = detectionId;
         this.parentId = parentId;
+        this.detectName = detectName;
     }
 
     public Long getDetectId() {
@@ -128,6 +130,14 @@ public class InspectionModelDetects {
 
     public void setParentId(String parentId) {
         this.parentId = parentId;
+    }
+
+    public String getDetectName() {
+        return detectName;
+    }
+
+    public void setDetectName(String detectName) {
+        this.detectName = detectName;
     }
 }
 

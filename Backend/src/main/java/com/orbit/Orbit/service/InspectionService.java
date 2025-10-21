@@ -194,6 +194,9 @@ public class InspectionService {
             }
             RoboflowResponse predictions = roboflowService.analyzeInspectionImage(base64Image);
             this.inspectionRepository.save(inspection);
+            //If any detects present
+            detectsService.deleteByInspectionNumber(inspectionNumber);
+
             detectsService.save(predictions,inspection);
             //inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
             //Saving all the predictions

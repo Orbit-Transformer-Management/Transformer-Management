@@ -8,10 +8,12 @@ import com.orbit.Orbit.model.InspectionModelDetects;
 import com.orbit.Orbit.repo.InspectionDetectsTimelineRepo;
 import com.orbit.Orbit.repo.InspectionModelDetectsRepo;
 import com.orbit.Orbit.repo.InspectionRepo;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Transactional
 @Service
 public class DetectsService {
     private final InspectionModelDetectsRepo inspectionModelDetectsRepository;
@@ -74,6 +76,12 @@ public class DetectsService {
         inspectionDetectsTimelineRepository.save(timeline);
         inspectionModelDetectsRepository.deleteById(detectId);
     }
+
+    public void deleteByInspectionNumber(String inspectionNumber){
+        inspectionModelDetectsRepository.deleteByInspectionNumber(inspectionNumber);
+    }
+
+
 
     public InspectionModelDetects update(UpdateDetectionRequest req,String detectId){
         InspectionModelDetects existing = inspectionModelDetectsRepository
