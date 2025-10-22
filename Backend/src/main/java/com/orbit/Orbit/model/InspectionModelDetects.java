@@ -3,6 +3,9 @@ package com.orbit.Orbit.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "inspection_model_detects")
 public class InspectionModelDetects {
@@ -24,6 +27,12 @@ public class InspectionModelDetects {
     private String detectionId;
     private String parentId;
 
+    @OneToMany(
+            mappedBy = "detect",
+            cascade = CascadeType.ALL,      // includes REMOVE
+            orphanRemoval = true
+    )
+    private List<InspectionDetectsTimeline> timelines = new ArrayList<>();
 
     public InspectionModelDetects() {
 

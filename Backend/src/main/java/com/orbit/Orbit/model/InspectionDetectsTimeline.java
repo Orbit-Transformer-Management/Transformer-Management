@@ -15,9 +15,9 @@ public class InspectionDetectsTimeline {
     private Long anotationId;
 
     @ManyToOne
-    @JoinColumn(name = "detect_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
+    @JoinColumn(name = "detect_id", referencedColumnName = "detectId")
     private InspectionModelDetects detect;
+
 
     @ManyToOne
     @JoinColumn(name = "inspection_number", referencedColumnName = "inspectionNumber")

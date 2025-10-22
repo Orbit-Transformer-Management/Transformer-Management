@@ -85,6 +85,7 @@ public class DetectsService {
         new_detect.setParentId(req.getParentId());
         new_detect.setDetectName(req.getFaultName()); // Save user-entered fault name
         InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(new_detect,req.getAuthor(), req.getComment(),"add");
+        inspectionDetectsTimelineRepository.save(timeline);
         return inspectionModelDetectsRepository.save(new_detect);
 
     }
@@ -99,6 +100,7 @@ public class DetectsService {
     }
 
     public void deleteByInspectionNumber(String inspectionNumber){
+        inspectionDetectsTimelineRepository.deleteByInspectionNumber(inspectionNumber);
         inspectionModelDetectsRepository.deleteByInspectionNumber(inspectionNumber);
     }
 
