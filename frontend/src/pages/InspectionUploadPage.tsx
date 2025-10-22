@@ -74,6 +74,21 @@ interface AnnotationEntry {
   createdAt: string; // ISO
   faultName?: string; // Fault name from the bounding box (tag like "Normal 2")
   className?: string; // Class name (actual model class: "normal", "pf", "f")
+  // Bounding box coordinates (stored for deleted/edited detections)
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  confidence?: number; // Confidence value (stored for deleted/edited detections)
+  // Original bounding box before edit (for edit operations only)
+  originalBoundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 const INITIAL_ZOOM = 1;
@@ -182,7 +197,8 @@ const exportFeedbackLogToJSON = (
   inspectionNo: string,
   addedDetectIds: Set<number>,
   deletedDetectIds: Set<number>,
-  transformerId: string
+  transformerId: string,
+  editedDetectOriginalBoxes: Map<number, { x: number; y: number; width: number; height: number; confidence: number }>
 ) => {
   if (predictions.length === 0 && annotations.length === 0) {
     alert("No detection data to export!");
@@ -210,7 +226,8 @@ const exportFeedbackLogToJSON = (
         transformerId: transformerId,
         "predicted by": "annotator",
         confidence: 1,
-        type: pred.label,
+        type: pred.label === "pf" ? "f" : pred.label, // Replace pf with f
+        faultName: addAnnotation?.faultName || pred.tag || pred.label,
         accepted: true,
         boundingBox: {
           x: pred.x,
@@ -225,19 +242,90 @@ const exportFeedbackLogToJSON = (
         } : null
       });
     } else {
-      // Model-generated anomaly: always keep original
+      // Model-generated anomaly: check if edited or deleted
       
-      if (editAnnotation || isDeleted || deleteAnnotation) {
-        // EDITED or DELETED: Keep original model prediction with accepted=false
-        // Type should remain the same as original, only accepted changes to false
-        const annotatorMeta = editAnnotation || deleteAnnotation;
+      if (editAnnotation) {
+        // EDITED: Create TWO entries
+        
+        // Get original bounding box from stored map or annotation or fallback to current
+        let originalBBox = {
+          x: pred.x,
+          y: pred.y,
+          width: pred.width,
+          height: pred.height
+        };
+        
+        // Priority 1: Use stored original bounding box from editedDetectOriginalBoxes
+        if (pred.detectId && editedDetectOriginalBoxes.has(pred.detectId)) {
+          const stored = editedDetectOriginalBoxes.get(pred.detectId)!;
+          originalBBox = {
+            x: stored.x,
+            y: stored.y,
+            width: stored.width,
+            height: stored.height
+          };
+        }
+        // Priority 2: Use original bounding box from annotation if available
+        else if (editAnnotation.originalBoundingBox) {
+          originalBBox = editAnnotation.originalBoundingBox;
+        }
+        
+        // Get original confidence
+        const originalConfidence = (pred.detectId && editedDetectOriginalBoxes.has(pred.detectId)) 
+          ? editedDetectOriginalBoxes.get(pred.detectId)!.confidence
+          : (editAnnotation.confidence || pred.confidence);
+        
+        // 1. Original model prediction with ORIGINAL position, accepted=false, with annotator metadata
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          "predicted by": "Model",
+          confidence: originalConfidence,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: editAnnotation?.faultName || pred.tag || pred.label,
+          accepted: false,
+          boundingBox: originalBBox,
+          "annotator metadata": {
+            user: editAnnotation.author,
+            time: editAnnotation.createdAt,
+            comment: editAnnotation.comment
+          }
+        });
+        
+        // 2. New annotator entry with NEW position, predicted by annotator
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          "predicted by": "annotator",
+          confidence: pred.confidence,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: editAnnotation?.faultName || pred.tag || pred.label,
+          accepted: true,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": {
+            user: editAnnotation.author,
+            time: editAnnotation.createdAt,
+            comment: editAnnotation.comment
+          }
+        });
+      } else if (isDeleted || deleteAnnotation) {
+        // DELETED: Keep original model prediction with accepted=false
+        const annotatorMeta = deleteAnnotation;
         feedbackLog.push({
           imageId: inspectionNo,
           inspectionNo: inspectionNo,
           transformerId: transformerId,
           "predicted by": "Model",
           confidence: pred.confidence,
-          type: pred.label,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: deleteAnnotation?.faultName || pred.tag || pred.label,
           accepted: false,
           boundingBox: {
             x: pred.x,
@@ -259,7 +347,8 @@ const exportFeedbackLogToJSON = (
           transformerId: transformerId,
           "predicted by": "Model",
           confidence: pred.confidence,
-          type: pred.label,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: pred.tag || pred.label,
           accepted: true,
           boundingBox: {
             x: pred.x,
@@ -286,21 +375,59 @@ const exportFeedbackLogToJSON = (
     if (detectionType === "unknown" && (delAnnotation as any).detect?.className) {
       detectionType = (delAnnotation as any).detect.className;
     }
+
+    // Replace pf with f
+    detectionType = detectionType === "pf" ? "f" : detectionType;
+
+    // Try to get fault name from the annotation
+    let faultName = delAnnotation.faultName || detectionType;
+    if (!delAnnotation.faultName && (delAnnotation as any).detect?.detectName) {
+      faultName = (delAnnotation as any).detect.detectName;
+    }
+    
+    // Get confidence - use stored value or backend detect, default to 0
+    let confidence = delAnnotation.confidence || 0;
+    if (confidence === 0 && (delAnnotation as any).detect?.confidence) {
+      confidence = (delAnnotation as any).detect.confidence;
+    }
+    
+    // Get bounding box - use stored values or backend detect values, or fallback to 0
+    let boundingBox = {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0
+    };
+    
+    if (delAnnotation.boundingBox) {
+      // Use the stored bounding box from when the detection was deleted
+      boundingBox = {
+        x: delAnnotation.boundingBox.x,
+        y: delAnnotation.boundingBox.y,
+        width: delAnnotation.boundingBox.width,
+        height: delAnnotation.boundingBox.height
+      };
+    } else if ((delAnnotation as any).detect) {
+      // Fallback to backend detect data if available
+      const detect = (delAnnotation as any).detect;
+      boundingBox = {
+        x: detect.x || 0,
+        y: detect.y || 0,
+        width: detect.width || 0,
+        height: detect.height || 0
+      };
+    }
     
     feedbackLog.push({
       imageId: inspectionNo,
       inspectionNo: inspectionNo,
       transformerId: transformerId,
       "predicted by": "Model",
-      confidence: 0,
+      confidence: confidence,
       type: detectionType,
+      faultName: faultName,
       accepted: false,
-      boundingBox: {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0
-      },
+      boundingBox: boundingBox,
       "annotator metadata": {
         user: delAnnotation.author,
         time: delAnnotation.createdAt,
@@ -332,7 +459,8 @@ const exportFeedbackLogToCSV = (
   inspectionNo: string,
   addedDetectIds: Set<number>,
   deletedDetectIds: Set<number>,
-  transformerId: string
+  transformerId: string,
+  editedDetectOriginalBoxes: Map<number, { x: number; y: number; width: number; height: number; confidence: number }>
 ) => {
   if (predictions.length === 0 && annotations.length === 0) {
     alert("No detection data to export!");
@@ -358,7 +486,8 @@ const exportFeedbackLogToCSV = (
         transformerId: transformerId,
         predictedBy: "annotator",
         confidence: 1,
-        type: pred.label,
+        type: pred.label === "pf" ? "f" : pred.label, // Replace pf with f
+        faultName: addAnnotation?.faultName || pred.tag || pred.label,
         accepted: true,
         boundingBoxX: pred.x,
         boundingBoxY: pred.y,
@@ -369,17 +498,85 @@ const exportFeedbackLogToCSV = (
         annotatorComment: addAnnotation?.comment || ""
       });
     } else {
-      if (editAnnotation || isDeleted || deleteAnnotation) {
-        // EDITED or DELETED: Keep original model prediction with accepted=false
-        // Type should remain the same as original, only accepted changes to false
-        const annotatorMeta = editAnnotation || deleteAnnotation;
+      if (editAnnotation) {
+        // EDITED: Create TWO entries
+        
+        // Get original bounding box from stored map or annotation or fallback to current
+        let originalBBox = {
+          x: pred.x,
+          y: pred.y,
+          width: pred.width,
+          height: pred.height
+        };
+        
+        // Priority 1: Use stored original bounding box from editedDetectOriginalBoxes
+        if (pred.detectId && editedDetectOriginalBoxes.has(pred.detectId)) {
+          const stored = editedDetectOriginalBoxes.get(pred.detectId)!;
+          originalBBox = {
+            x: stored.x,
+            y: stored.y,
+            width: stored.width,
+            height: stored.height
+          };
+        }
+        // Priority 2: Use original bounding box from annotation if available
+        else if (editAnnotation.originalBoundingBox) {
+          originalBBox = editAnnotation.originalBoundingBox;
+        }
+        
+        // Get original confidence
+        const originalConfidence = (pred.detectId && editedDetectOriginalBoxes.has(pred.detectId)) 
+          ? editedDetectOriginalBoxes.get(pred.detectId)!.confidence
+          : (editAnnotation.confidence || pred.confidence);
+        
+        // 1. Original model prediction with ORIGINAL position, accepted=false, with annotator metadata
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          predictedBy: "Model",
+          confidence: originalConfidence,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: editAnnotation?.faultName || pred.tag || pred.label,
+          accepted: false,
+          boundingBoxX: originalBBox.x,
+          boundingBoxY: originalBBox.y,
+          boundingBoxWidth: originalBBox.width,
+          boundingBoxHeight: originalBBox.height,
+          annotatorUser: editAnnotation.author,
+          annotatorTime: editAnnotation.createdAt,
+          annotatorComment: editAnnotation.comment
+        });
+        
+        // 2. New annotator entry with NEW position, predicted by annotator
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          predictedBy: "annotator",
+          confidence: pred.confidence,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: editAnnotation?.faultName || pred.tag || pred.label,
+          accepted: true,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: editAnnotation.author,
+          annotatorTime: editAnnotation.createdAt,
+          annotatorComment: editAnnotation.comment
+        });
+      } else if (isDeleted || deleteAnnotation) {
+        // DELETED: Keep original model prediction with accepted=false
+        const annotatorMeta = deleteAnnotation;
         feedbackLog.push({
           imageId: inspectionNo,
           inspectionNo: inspectionNo,
           transformerId: transformerId,
           predictedBy: "Model",
           confidence: pred.confidence,
-          type: pred.label,
+          type: pred.label === "pf" ? "f" : pred.label,
+          faultName: deleteAnnotation?.faultName || pred.tag || pred.label,
           accepted: false,
           boundingBoxX: pred.x,
           boundingBoxY: pred.y,
@@ -396,7 +593,8 @@ const exportFeedbackLogToCSV = (
           transformerId: transformerId,
           predictedBy: "Model",
           confidence: pred.confidence,
-          type: pred.label,
+          type: pred.label === "pf" ? "f" : pred.label, // Replace pf with f
+          faultName: pred.tag || pred.label,
           accepted: true,
           boundingBoxX: pred.x,
           boundingBoxY: pred.y,
@@ -410,6 +608,75 @@ const exportFeedbackLogToCSV = (
     }
   });
 
+  // Add deleted model predictions that are no longer in the predictions array
+  const deletedAnnotations = annotations.filter(a => 
+    a.type === "delete" && !predictions.find(p => p.detectId === a.anotationId)
+  );
+  
+  deletedAnnotations.forEach(delAnnotation => {
+    // Try to get className from the annotation, or fall back to "normal" if missing
+    let detectionType = delAnnotation.className || "unknown";
+    
+    // If className is missing and we have backend detect data, try to use it
+    if (detectionType === "unknown" && (delAnnotation as any).detect?.className) {
+      detectionType = (delAnnotation as any).detect.className;
+    }
+
+    // Replace pf with f
+    detectionType = detectionType === "pf" ? "f" : detectionType;
+
+    // Try to get fault name from the annotation
+    let faultName = delAnnotation.faultName || detectionType;
+    if (!delAnnotation.faultName && (delAnnotation as any).detect?.detectName) {
+      faultName = (delAnnotation as any).detect.detectName;
+    }
+    
+    // Get confidence - use stored value or backend detect, default to 0
+    let confidence = delAnnotation.confidence || 0;
+    if (confidence === 0 && (delAnnotation as any).detect?.confidence) {
+      confidence = (delAnnotation as any).detect.confidence;
+    }
+    
+    // Get bounding box - use stored values or backend detect values, or fallback to 0
+    let boundingBoxX = 0;
+    let boundingBoxY = 0;
+    let boundingBoxWidth = 0;
+    let boundingBoxHeight = 0;
+    
+    if (delAnnotation.boundingBox) {
+      // Use the stored bounding box from when the detection was deleted
+      boundingBoxX = delAnnotation.boundingBox.x;
+      boundingBoxY = delAnnotation.boundingBox.y;
+      boundingBoxWidth = delAnnotation.boundingBox.width;
+      boundingBoxHeight = delAnnotation.boundingBox.height;
+    } else if ((delAnnotation as any).detect) {
+      // Fallback to backend detect data if available
+      const detect = (delAnnotation as any).detect;
+      boundingBoxX = detect.x || 0;
+      boundingBoxY = detect.y || 0;
+      boundingBoxWidth = detect.width || 0;
+      boundingBoxHeight = detect.height || 0;
+    }
+    
+    feedbackLog.push({
+      imageId: inspectionNo,
+      inspectionNo: inspectionNo,
+      transformerId: transformerId,
+      predictedBy: "Model",
+      confidence: confidence,
+      type: detectionType,
+      faultName: faultName,
+      accepted: false,
+      boundingBoxX: boundingBoxX,
+      boundingBoxY: boundingBoxY,
+      boundingBoxWidth: boundingBoxWidth,
+      boundingBoxHeight: boundingBoxHeight,
+      annotatorUser: delAnnotation.author,
+      annotatorTime: delAnnotation.createdAt,
+      annotatorComment: delAnnotation.comment
+    });
+  });
+
   // CSV headers
   const headers = [
     "Image ID",
@@ -418,6 +685,7 @@ const exportFeedbackLogToCSV = (
     "Predicted By",
     "Confidence",
     "Type",
+    "Fault Name",
     "Accepted",
     "Bounding Box X",
     "Bounding Box Y",
@@ -437,6 +705,7 @@ const exportFeedbackLogToCSV = (
       entry.predictedBy,
       entry.confidence,
       entry.type,
+      entry.faultName,
       entry.accepted,
       entry.boundingBoxX,
       entry.boundingBoxY,
@@ -989,6 +1258,23 @@ const InspectionUploadPage = () => {
     return stored ? new Set(JSON.parse(stored)) : new Set();
   });
   
+  // Store original bounding boxes for edited detections (for feedback log export)
+  const [editedDetectOriginalBoxes, setEditedDetectOriginalBoxes] = useState<Map<number, {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    confidence: number;
+  }>>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`editedOriginalBoxes_${inspectionNo}`);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return new Map(Object.entries(parsed).map(([k, v]: [string, any]) => [Number(k), v]));
+    }
+    return new Map();
+  });
+  
   // Local timeline entries that backend doesn't save (Add and Delete operations)
   const [localTimelineEntries, setLocalTimelineEntries] = useState<AnnotationEntry[]>(() => {
     // Load from localStorage on mount
@@ -1049,6 +1335,14 @@ const InspectionUploadPage = () => {
       console.log("💾 Saved localTimeline to localStorage:", localTimelineEntries.length, "entries");
     }
   }, [localTimelineEntries, inspectionNo]);
+
+  useEffect(() => {
+    if (inspectionNo) {
+      const obj = Object.fromEntries(editedDetectOriginalBoxes);
+      localStorage.setItem(`editedOriginalBoxes_${inspectionNo}`, JSON.stringify(obj));
+      console.log("💾 Saved editedOriginalBoxes to localStorage:", editedDetectOriginalBoxes.size, "entries");
+    }
+  }, [editedDetectOriginalBoxes, inspectionNo]);
 
   // Load from localStorage on component mount
   useEffect(() => {
@@ -1368,7 +1662,22 @@ const fetchPredictions = async () => {
           return {
             ...entry,
             faultName,
-            className
+            className,
+            // Include bounding box data from detect
+            boundingBox: entry.detect ? {
+              x: entry.detect.x,
+              y: entry.detect.y,
+              width: entry.detect.width,
+              height: entry.detect.height
+            } : undefined,
+            confidence: entry.detect?.confidence,
+            // Include original bounding box if available (for edit entries)
+            originalBoundingBox: entry.originalX !== undefined ? {
+              x: entry.originalX,
+              y: entry.originalY,
+              width: entry.originalWidth,
+              height: entry.originalHeight
+            } : undefined
           };
         })
       ].sort((a, b) => {
@@ -1617,6 +1926,14 @@ const fetchPredictions = async () => {
 
     setIsSubmittingEditComment(true);
 
+    // Store the ORIGINAL bounding box before editing
+    const originalBoundingBox = {
+      x: original.x,
+      y: original.y,
+      width: original.width,
+      height: original.height
+    };
+
     // Convert draft CSS coords to model center coords
     const newX = editDraft.left + editDraft.width / 2;
     const newY = editDraft.top + editDraft.height / 2;
@@ -1643,7 +1960,12 @@ const fetchPredictions = async () => {
       parentId: "image",
       author: "Shaveen",
       comment,
-      faultName: updated.tag // Send fault name to backend
+      faultName: updated.tag, // Send fault name to backend
+      // Send original bounding box coordinates for the timeline entry
+      originalX: originalBoundingBox.x,
+      originalY: originalBoundingBox.y,
+      originalWidth: originalBoundingBox.width,
+      originalHeight: originalBoundingBox.height
     };
 
     try {
@@ -1651,13 +1973,34 @@ const fetchPredictions = async () => {
       // Convert detectId to String for the URL
       const detectIdStr = String(original.detectId);
       console.log("📤 Sending EDIT request for detectId:", detectIdStr, "(converted from", original.detectId, ")");
-      console.log("📤 EDIT payload with fault name:", payload);
+      console.log("📤 EDIT payload with fault name and original bounding box:", payload);
       
       const response = await axios.put(
         `http://localhost:8080/api/v1/inspections/analyze/${detectIdStr}`,
         payload
       );
       console.log("✅ EDIT response:", response.data);
+      
+      // NOTE: We don't add edit entries to localTimelineEntries because the backend
+      // properly saves edit entries. We only use localTimelineEntries for Add and Delete
+      // operations which have backend bugs. The edit entry will appear in the timeline
+      // when we fetch from the backend.
+      
+      // However, we need to store the original bounding box for feedback log export
+      // Store it in a Map keyed by detectId
+      setEditedDetectOriginalBoxes(prev => {
+        const newMap = new Map(prev);
+        newMap.set(original.detectId!, {
+          x: originalBoundingBox.x,
+          y: originalBoundingBox.y,
+          width: originalBoundingBox.width,
+          height: originalBoundingBox.height,
+          confidence: original.confidence
+        });
+        return newMap;
+      });
+      console.log("✅ Stored original bounding box for detectId:", original.detectId);
+      
       // Refresh predictions and timeline to show the edit entry properly sorted
       await fetchPredictions();
       await fetchAnnotations();
@@ -1713,7 +2056,15 @@ const fetchPredictions = async () => {
         author: "Shaveen",
         createdAt: now,
         faultName: target.tag || "Unknown",
-        className: target.label // Store the actual class: "normal", "pf", "f"
+        className: target.label, // Store the actual class: "normal", "pf", "f"
+        // Store the original bounding box coordinates before deletion
+        boundingBox: {
+          x: target.x,
+          y: target.y,
+          width: target.width,
+          height: target.height
+        },
+        confidence: target.confidence
       };
       
       // Add to local timeline entries and sort immediately
@@ -1726,7 +2077,7 @@ const fetchPredictions = async () => {
           return dateB - dateA;
         });
       });
-      console.log("✅ Created local timeline entry for Delete operation:", localEntry);
+      console.log("✅ Created local timeline entry for Delete operation with bounding box:", localEntry);
     }
 
     // ⚠️ BACKEND DELETE IS BROKEN - See BACKEND_FIXES_NEEDED.md
@@ -2690,7 +3041,7 @@ const fetchPredictions = async () => {
                 <div className="absolute right-0 mt-2 w-56 bg-white shadow-2xl border border-gray-200 z-[9999] py-1">
                   <button
                     onClick={() => {
-                      exportFeedbackLogToCSV(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "");
+                      exportFeedbackLogToCSV(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "", editedDetectOriginalBoxes);
                       setIsFeedbackExportDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
@@ -2700,7 +3051,7 @@ const fetchPredictions = async () => {
                   </button>
                   <button
                     onClick={() => {
-                      exportFeedbackLogToJSON(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "");
+                      exportFeedbackLogToJSON(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "", editedDetectOriginalBoxes);
                       setIsFeedbackExportDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
