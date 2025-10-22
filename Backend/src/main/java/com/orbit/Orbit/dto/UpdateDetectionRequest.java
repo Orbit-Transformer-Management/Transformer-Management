@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class UpdateDetectionRequest {
-    //private Long id;            // DB PK you’re updating (or omit if you update by path id)
+    //private Long id;            // DB PK you're updating (or omit if you update by path id)
     //private String detectionId; // if you update by business id
     private Double width, height, x, y, confidence;
     private Integer classId;
@@ -14,4 +14,7 @@ public class UpdateDetectionRequest {
     // timeline
     private String author;
     private String comment;
+    
+    // fault name (user-entered label for the detection)
+    private String faultName;
 }

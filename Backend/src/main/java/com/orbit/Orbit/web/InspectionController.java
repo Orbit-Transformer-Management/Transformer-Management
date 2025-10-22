@@ -96,6 +96,18 @@ public class InspectionController {
         return ResponseEntity.ok(detections);
     }
 
+    @GetMapping("/api/v1/inspections/analyze/all")
+    public ResponseEntity<List<DetectionResponse>> getAllDetections() {
+        List<DetectionResponse> detections = detectsService.getAllDetects();
+        return ResponseEntity.ok(detections);
+    }
+
+    @GetMapping("/api/v1/inspections/analyze/timeline/all")
+    public ResponseEntity<List<TimelineResponse>> getAllTimeline() {
+        List<TimelineResponse> timeline = detectsService.getAllTimeline();
+        return ResponseEntity.ok(timeline);
+    }
+
     @PutMapping("/api/v1/inspections/analyze/{detectId}")
     public ResponseEntity<InspectionModelDetects> updatePrediction(
             @PathVariable String detectId,

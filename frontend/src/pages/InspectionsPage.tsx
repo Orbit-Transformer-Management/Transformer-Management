@@ -4,7 +4,7 @@ import PageLayout from '../components/common/PageLayout';
 import Pagination from '../components/common/Pagination';
 import AddInspectionModal from '../components/AddInspectionModal';
 import EditInspectionModal from '../components/EditInspectionModal';
-import { Search, Plus, Star, MoreVertical, ChevronLeft, Filter, Calendar, Clock, Eye, Trash2, Activity, TrendingUp, AlertTriangle, Zap, MapPin, Edit, X } from 'lucide-react';
+import { Search, Plus, Star, MoreVertical, ChevronLeft, Filter, Calendar, Clock, Eye, Trash2, Activity, TrendingUp, AlertTriangle, Zap, MapPin, Edit, X, Download } from 'lucide-react';
 import axios from 'axios';
 
 interface Inspection {
@@ -48,6 +48,8 @@ const InspectionsPage: React.FC = () => {
         isOpen: boolean;
         inspection: Inspection | null;
     }>({ isOpen: false, inspection: null });
+    const [annotationsCount, setAnnotationsCount] = useState<number>(0);
+    const [isFeedbackExportDropdownOpen, setIsFeedbackExportDropdownOpen] = useState(false);
 
     // pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -124,6 +126,19 @@ const InspectionsPage: React.FC = () => {
         fetchInspections();
     }, []);
 
+    // Fetch annotations count
+    useEffect(() => {
+        const fetchAnnotationsCount = async () => {
+            try {
+                const res = await axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all');
+                setAnnotationsCount(res.data.length);
+            } catch (err) {
+                console.error('Error fetching annotations count:', err);
+            }
+        };
+        fetchAnnotationsCount();
+    }, []);
+
     const [filters, setFilters] = useState({
         transformerNo: "",
         inspectionNo: "",
@@ -160,6 +175,352 @@ const InspectionsPage: React.FC = () => {
     // Reset all filters
     const resetFilters = () => {
         setFilters({ transformerNo: "", inspectionNo: "", inspectionDate: "", maintenanceDate: "", status: "" });
+    };
+
+    // Export All Feedback Logs to CSV
+    const exportAllFeedbackLogsToCSV = async () => {
+        try {
+            const [detectionsRes, timelineRes] = await Promise.all([
+                axios.get('http://localhost:8080/api/v1/inspections/analyze/all'),
+                axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all')
+            ]);
+
+            const allDetections = detectionsRes.data;
+            const allTimeline = timelineRes.data;
+
+            const feedbackLog: any[] = [];
+            const detectionsByInspection: { [key: string]: any[] } = {};
+            allDetections.forEach((detection: any) => {
+                const inspNo = detection.inspectionNumber || 'unknown';
+                if (!detectionsByInspection[inspNo]) {
+                    detectionsByInspection[inspNo] = [];
+                }
+                detectionsByInspection[inspNo].push(detection);
+            });
+
+            const timelineByDetectId: { [key: string]: any[] } = {};
+            allTimeline.forEach((entry: any) => {
+                const detectId = entry.detectId;
+                if (detectId) {
+                    if (!timelineByDetectId[detectId]) {
+                        timelineByDetectId[detectId] = [];
+                    }
+                    timelineByDetectId[detectId].push(entry);
+                }
+            });
+
+            const addedDetectIds = new Set<number>();
+            allTimeline.forEach((entry: any) => {
+                if (entry.type === 'add') {
+                    addedDetectIds.add(entry.detectId);
+                }
+            });
+
+            Object.entries(detectionsByInspection).forEach(([inspectionNo, detections]) => {
+                detections.forEach((detection: any) => {
+                    const detectId = detection.detectId;
+                    const isUserAdded = addedDetectIds.has(detectId);
+                    const relatedTimeline = timelineByDetectId[detectId] || [];
+                    
+                    const editAnnotation = relatedTimeline.find((a: any) => a.type === 'edit');
+                    const deleteAnnotation = relatedTimeline.find((a: any) => a.type === 'delete');
+                    const addAnnotation = relatedTimeline.find((a: any) => a.type === 'add');
+
+                    if (isUserAdded) {
+                        feedbackLog.push({
+                            imageId: inspectionNo,
+                            predictedBy: "annotator",
+                            confidence: 1,
+                            type: detection.className,
+                            accepted: true,
+                            boundingBoxX: detection.x,
+                            boundingBoxY: detection.y,
+                            boundingBoxWidth: detection.width,
+                            boundingBoxHeight: detection.height,
+                            annotatorUser: addAnnotation ? addAnnotation.author : '',
+                            annotatorTime: addAnnotation ? addAnnotation.createdAt : '',
+                            annotatorComment: addAnnotation ? addAnnotation.comment : ''
+                        });
+                    } else {
+                        if (editAnnotation) {
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                predictedBy: "Model",
+                                confidence: detection.confidence,
+                                type: detection.className,
+                                accepted: false,
+                                boundingBoxX: detection.x,
+                                boundingBoxY: detection.y,
+                                boundingBoxWidth: detection.width,
+                                boundingBoxHeight: detection.height,
+                                annotatorUser: '',
+                                annotatorTime: '',
+                                annotatorComment: ''
+                            });
+
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                predictedBy: "annotator",
+                                confidence: 1,
+                                type: detection.className,
+                                accepted: true,
+                                boundingBoxX: detection.x,
+                                boundingBoxY: detection.y,
+                                boundingBoxWidth: detection.width,
+                                boundingBoxHeight: detection.height,
+                                annotatorUser: editAnnotation.author,
+                                annotatorTime: editAnnotation.createdAt,
+                                annotatorComment: editAnnotation.comment
+                            });
+                        } else if (deleteAnnotation) {
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                predictedBy: "Model",
+                                confidence: detection.confidence,
+                                type: detection.className,
+                                accepted: false,
+                                boundingBoxX: detection.x,
+                                boundingBoxY: detection.y,
+                                boundingBoxWidth: detection.width,
+                                boundingBoxHeight: detection.height,
+                                annotatorUser: deleteAnnotation.author,
+                                annotatorTime: deleteAnnotation.createdAt,
+                                annotatorComment: deleteAnnotation.comment
+                            });
+                        } else {
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                predictedBy: "Model",
+                                confidence: detection.confidence,
+                                type: detection.className,
+                                accepted: true,
+                                boundingBoxX: detection.x,
+                                boundingBoxY: detection.y,
+                                boundingBoxWidth: detection.width,
+                                boundingBoxHeight: detection.height,
+                                annotatorUser: '',
+                                annotatorTime: '',
+                                annotatorComment: ''
+                            });
+                        }
+                    }
+                });
+            });
+
+            // Create CSV content
+            const headers = [
+                'Image ID',
+                'Predicted By',
+                'Confidence',
+                'Type',
+                'Accepted',
+                'Bounding Box X',
+                'Bounding Box Y',
+                'Bounding Box Width',
+                'Bounding Box Height',
+                'Annotator User',
+                'Annotator Time',
+                'Annotator Comment'
+            ];
+
+            const csvRows = feedbackLog.map(entry => [
+                entry.imageId,
+                entry.predictedBy,
+                entry.confidence,
+                entry.type,
+                entry.accepted,
+                entry.boundingBoxX,
+                entry.boundingBoxY,
+                entry.boundingBoxWidth,
+                entry.boundingBoxHeight,
+                entry.annotatorUser,
+                entry.annotatorTime,
+                entry.annotatorComment
+            ].map(val => `"${val}"`).join(','));
+
+            const csvContent = [headers.join(','), ...csvRows].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const date = new Date().toISOString().split('T')[0];
+            link.href = url;
+            link.download = `feedback_log_all_inspections_${date}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error exporting feedback log to CSV:', error);
+        }
+    };
+
+    // Export All Feedback Logs to JSON - FR3.3: Feedback Integration for Model Improvement
+    const exportAllFeedbackLogsToJSON = async () => {
+        try {
+            // Fetch all detections and timeline data
+            const [detectionsRes, timelineRes] = await Promise.all([
+                axios.get('http://localhost:8080/api/v1/inspections/analyze/all'),
+                axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all')
+            ]);
+
+            const allDetections = detectionsRes.data;
+            const allTimeline = timelineRes.data;
+
+            const feedbackLog: any[] = [];
+            const detectionsByInspection: { [key: string]: any[] } = {};
+            allDetections.forEach((detection: any) => {
+                const inspNo = detection.inspectionNumber || 'unknown';
+                if (!detectionsByInspection[inspNo]) {
+                    detectionsByInspection[inspNo] = [];
+                }
+                detectionsByInspection[inspNo].push(detection);
+            });
+
+            // Group timeline by detection ID
+            const timelineByDetectId: { [key: string]: any[] } = {};
+            allTimeline.forEach((entry: any) => {
+                const detectId = entry.detectId;
+                if (detectId) {
+                    if (!timelineByDetectId[detectId]) {
+                        timelineByDetectId[detectId] = [];
+                    }
+                    timelineByDetectId[detectId].push(entry);
+                }
+            });
+
+            // Track which detection IDs are user-added (have 'add' annotation)
+            const addedDetectIds = new Set<number>();
+            allTimeline.forEach((entry: any) => {
+                if (entry.type === 'add') {
+                    addedDetectIds.add(entry.detectId);
+                }
+            });
+
+            // Process each inspection's detections
+            Object.entries(detectionsByInspection).forEach(([inspectionNo, detections]) => {
+                detections.forEach((detection: any) => {
+                    const detectId = detection.detectId;
+                    const isUserAdded = addedDetectIds.has(detectId);
+                    const relatedTimeline = timelineByDetectId[detectId] || [];
+                    
+                    const editAnnotation = relatedTimeline.find((a: any) => a.type === 'edit');
+                    const deleteAnnotation = relatedTimeline.find((a: any) => a.type === 'delete');
+                    const addAnnotation = relatedTimeline.find((a: any) => a.type === 'add');
+
+                    if (isUserAdded) {
+                        // User-added anomaly: only one entry
+                        feedbackLog.push({
+                            imageId: inspectionNo,
+                            "predicted by": "annotator",
+                            confidence: 1,
+                            type: detection.className,
+                            accepted: true,
+                            boundingBox: {
+                                x: detection.x,
+                                y: detection.y,
+                                width: detection.width,
+                                height: detection.height
+                            },
+                            "annotator metadata": addAnnotation ? {
+                                user: addAnnotation.author,
+                                time: addAnnotation.createdAt,
+                                comment: addAnnotation.comment
+                            } : null
+                        });
+                    } else {
+                        // Model-generated anomaly
+                        if (editAnnotation) {
+                            // EDITED: Keep original model prediction with accepted=false
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                "predicted by": "Model",
+                                confidence: detection.confidence,
+                                type: detection.className,
+                                accepted: false,
+                                boundingBox: {
+                                    x: detection.x,
+                                    y: detection.y,
+                                    width: detection.width,
+                                    height: detection.height
+                                },
+                                "annotator metadata": null
+                            });
+
+                            // Add new entry with edited position
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                "predicted by": "annotator",
+                                confidence: 1,
+                                type: detection.className,
+                                accepted: true,
+                                boundingBox: {
+                                    x: detection.x,
+                                    y: detection.y,
+                                    width: detection.width,
+                                    height: detection.height
+                                },
+                                "annotator metadata": {
+                                    user: editAnnotation.author,
+                                    time: editAnnotation.createdAt,
+                                    comment: editAnnotation.comment
+                                }
+                            });
+                        } else if (deleteAnnotation) {
+                            // DELETED: Keep original model prediction with accepted=false
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                "predicted by": "Model",
+                                confidence: detection.confidence,
+                                type: detection.className,
+                                accepted: false,
+                                boundingBox: {
+                                    x: detection.x,
+                                    y: detection.y,
+                                    width: detection.width,
+                                    height: detection.height
+                                },
+                                "annotator metadata": {
+                                    user: deleteAnnotation.author,
+                                    time: deleteAnnotation.createdAt,
+                                    comment: deleteAnnotation.comment
+                                }
+                            });
+                        } else {
+                            // UNCHANGED: Keep original model prediction with accepted=true
+                            feedbackLog.push({
+                                imageId: inspectionNo,
+                                "predicted by": "Model",
+                                confidence: detection.confidence,
+                                type: detection.className,
+                                accepted: true,
+                                boundingBox: {
+                                    x: detection.x,
+                                    y: detection.y,
+                                    width: detection.width,
+                                    height: detection.height
+                                },
+                                "annotator metadata": null
+                            });
+                        }
+                    }
+                });
+            });
+
+            // Create and download JSON file
+            const jsonString = JSON.stringify(feedbackLog, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const date = new Date().toISOString().split('T')[0];
+            link.href = url;
+            link.download = `feedback_log_all_inspections_${date}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error exporting feedback log:', error);
+        }
     };
 
     return (
@@ -314,6 +675,60 @@ const InspectionsPage: React.FC = () => {
                             </button>
 
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Feedback Log Export Section - FR3.3 */}
+                <div className="bg-white rounded-3xl shadow-xl border-2 border-gray-100 p-8 relative overflow-visible">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-3xl font-bold text-red-600 mb-2">Feedback Log</h3>
+                            <p className="text-gray-600 text-lg mb-3">Export feedback data for all inspections to improve AI model accuracy</p>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-gray-700 font-semibold text-lg">Total Annotations Changes:</span>
+                                <span className="text-2xl font-bold text-red-600">{annotationsCount}</span>
+                            </div>
+                        </div>
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsFeedbackExportDropdownOpen(!isFeedbackExportDropdownOpen)}
+                                className="flex items-center bg-black text-white px-8 py-4 rounded-2xl 
+                                            hover:bg-gray-800 text-lg font-bold shadow-2xl 
+                                            transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
+                                            [&_*]:text-white [&_svg]:stroke-white"
+                            >
+                                <Download size={24} className="mr-3" />
+                                <span>Export</span>
+                            </button>
+                            {isFeedbackExportDropdownOpen && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-[9998]" 
+                                        onClick={() => setIsFeedbackExportDropdownOpen(false)}
+                                    />
+                                    <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 shadow-lg z-[9999]">
+                                        <button
+                                            onClick={() => {
+                                                exportAllFeedbackLogsToJSON();
+                                                setIsFeedbackExportDropdownOpen(false);
+                                            }}
+                                            className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 font-semibold transition-colors"
+                                        >
+                                            Export as JSON
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                exportAllFeedbackLogsToCSV();
+                                                setIsFeedbackExportDropdownOpen(false);
+                                            }}
+                                            className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 font-semibold transition-colors border-t border-gray-200"
+                                        >
+                                            Export as CSV
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

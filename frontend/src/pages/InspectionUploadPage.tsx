@@ -88,18 +88,20 @@ const formatDateTime = (iso: string) =>
   });
 
 // Export annotations to CSV
-const exportAnnotationsToCSV = (annotations: AnnotationEntry[], inspectionNo: string) => {
+const exportAnnotationsToCSV = (annotations: AnnotationEntry[], inspectionNo: string, transformerId: string) => {
   if (annotations.length === 0) {
     alert("No annotations to export!");
     return;
   }
 
   // Define CSV headers
-  const headers = ["Change Type", "Fault Name", "Comment", "User", "Timestamp"];
+  const headers = ["Image ID", "Transformer ID", "Action Taken", "Fault Name", "Comment", "User", "Timestamp"];
   
   // Convert annotations to CSV rows
   const rows = annotations.map((a) => {
     return [
+      inspectionNo,
+      transformerId,
       a.type.charAt(0).toUpperCase() + a.type.slice(1),
       a.faultName || "—",
       a.comment || "—",
@@ -127,6 +129,374 @@ const exportAnnotationsToCSV = (annotations: AnnotationEntry[], inspectionNo: st
   
   link.setAttribute('href', url);
   link.setAttribute('download', `inspection_${inspectionNo}_annotations_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Export annotations to JSON
+const exportAnnotationsToJSON = (annotations: AnnotationEntry[], inspectionNo: string, transformerId: string) => {
+  if (annotations.length === 0) {
+    alert("No annotations to export!");
+    return;
+  }
+
+  // Convert annotations to JSON format (same structure as CSV)
+  const jsonData = annotations.map((a) => ({
+    "Image ID": inspectionNo,
+    "Transformer ID": transformerId,
+    "Action Taken": a.type.charAt(0).toUpperCase() + a.type.slice(1),
+    "Fault Name": a.faultName || "—",
+    "Comment": a.comment || "—",
+    "User": a.author,
+    "Timestamp": formatDateTime(a.createdAt)
+  }));
+
+  // Create blob and download
+  const jsonString = JSON.stringify(jsonData, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `inspection_${inspectionNo}_annotations_${new Date().toISOString().split('T')[0]}.json`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Export Feedback Log to JSON - FR3.3: Feedback Integration for Model Improvement
+const exportFeedbackLogToJSON = (
+  predictions: Prediction[], 
+  annotations: AnnotationEntry[], 
+  inspectionNo: string,
+  addedDetectIds: Set<number>,
+  deletedDetectIds: Set<number>
+) => {
+  if (predictions.length === 0 && annotations.length === 0) {
+    alert("No detection data to export!");
+    return;
+  }
+
+  const feedbackLog: any[] = [];
+
+  // Process current predictions
+  predictions.forEach((pred) => {
+    const isUserAdded = pred.detectId ? addedDetectIds.has(pred.detectId) : false;
+    const isDeleted = pred.detectId ? deletedDetectIds.has(pred.detectId) : false;
+    
+    // Find annotation history for this detection
+    const relatedAnnotations = annotations.filter(a => a.anotationId === pred.detectId);
+    const editAnnotation = relatedAnnotations.find(a => a.type === "edit");
+    const deleteAnnotation = relatedAnnotations.find(a => a.type === "delete");
+    const addAnnotation = relatedAnnotations.find(a => a.type === "add");
+    
+    if (isUserAdded) {
+      // User-added anomaly: only one entry
+      feedbackLog.push({
+        imageId: inspectionNo,
+        "predicted by": "annotator",
+        confidence: 1,
+        type: pred.label,
+        accepted: true,
+        boundingBox: {
+          x: pred.x,
+          y: pred.y,
+          width: pred.width,
+          height: pred.height
+        },
+        "annotator metadata": addAnnotation ? {
+          user: addAnnotation.author,
+          time: addAnnotation.createdAt,
+          comment: addAnnotation.comment
+        } : null
+      });
+    } else {
+      // Model-generated anomaly: always keep original
+      
+      if (editAnnotation) {
+        // EDITED: Keep original model prediction with accepted=false
+        // We need to find the original bounding box before edit
+        // Since we only have current state, we'll mark the model prediction as not accepted
+        feedbackLog.push({
+          imageId: inspectionNo,
+          "predicted by": "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: false,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": null
+        });
+        
+        // Add new entry with edited position
+        feedbackLog.push({
+          imageId: inspectionNo,
+          "predicted by": "annotator",
+          confidence: 1,
+          type: pred.label,
+          accepted: true,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": {
+            user: editAnnotation.author,
+            time: editAnnotation.createdAt,
+            comment: editAnnotation.comment
+          }
+        });
+      } else if (isDeleted || deleteAnnotation) {
+        // DELETED: Keep original model prediction with accepted=false
+        feedbackLog.push({
+          imageId: inspectionNo,
+          "predicted by": "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: false,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": deleteAnnotation ? {
+            user: deleteAnnotation.author,
+            time: deleteAnnotation.createdAt,
+            comment: deleteAnnotation.comment
+          } : null
+        });
+      } else {
+        // UNCHANGED: Keep original model prediction with accepted=true
+        feedbackLog.push({
+          imageId: inspectionNo,
+          "predicted by": "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: true,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": null
+        });
+      }
+    }
+  });
+
+  // Add deleted model predictions that are no longer in the predictions array
+  const deletedAnnotations = annotations.filter(a => 
+    a.type === "delete" && !predictions.find(p => p.detectId === a.anotationId)
+  );
+  
+  deletedAnnotations.forEach(delAnnotation => {
+    feedbackLog.push({
+      imageId: inspectionNo,
+      "predicted by": "Model",
+      confidence: 0,
+      type: "deleted",
+      accepted: false,
+      boundingBox: {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0
+      },
+      "annotator metadata": {
+        user: delAnnotation.author,
+        time: delAnnotation.createdAt,
+        comment: delAnnotation.comment
+      }
+    });
+  });
+
+  // Create blob and download
+  const blob = new Blob([JSON.stringify(feedbackLog, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `feedback_log_${inspectionNo}_${new Date().toISOString().split('T')[0]}.json`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Export Feedback Log to CSV - FR3.3: Feedback Integration for Model Improvement
+const exportFeedbackLogToCSV = (
+  predictions: Prediction[], 
+  annotations: AnnotationEntry[], 
+  inspectionNo: string,
+  addedDetectIds: Set<number>,
+  deletedDetectIds: Set<number>
+) => {
+  if (predictions.length === 0 && annotations.length === 0) {
+    alert("No detection data to export!");
+    return;
+  }
+
+  const feedbackLog: any[] = [];
+
+  // Process current predictions (same logic as JSON export)
+  predictions.forEach((pred) => {
+    const isUserAdded = pred.detectId ? addedDetectIds.has(pred.detectId) : false;
+    const isDeleted = pred.detectId ? deletedDetectIds.has(pred.detectId) : false;
+    
+    const relatedAnnotations = annotations.filter(a => a.anotationId === pred.detectId);
+    const editAnnotation = relatedAnnotations.find(a => a.type === "edit");
+    const deleteAnnotation = relatedAnnotations.find(a => a.type === "delete");
+    const addAnnotation = relatedAnnotations.find(a => a.type === "add");
+    
+    if (isUserAdded) {
+      feedbackLog.push({
+        imageId: inspectionNo,
+        predictedBy: "annotator",
+        confidence: 1,
+        type: pred.label,
+        accepted: true,
+        boundingBoxX: pred.x,
+        boundingBoxY: pred.y,
+        boundingBoxWidth: pred.width,
+        boundingBoxHeight: pred.height,
+        annotatorUser: addAnnotation?.author || "",
+        annotatorTime: addAnnotation?.createdAt || "",
+        annotatorComment: addAnnotation?.comment || ""
+      });
+    } else {
+      if (editAnnotation) {
+        feedbackLog.push({
+          imageId: inspectionNo,
+          predictedBy: "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: false,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: "",
+          annotatorTime: "",
+          annotatorComment: ""
+        });
+        
+        feedbackLog.push({
+          imageId: inspectionNo,
+          predictedBy: "annotator",
+          confidence: 1,
+          type: pred.label,
+          accepted: true,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: editAnnotation.author,
+          annotatorTime: editAnnotation.createdAt,
+          annotatorComment: editAnnotation.comment
+        });
+      } else if (isDeleted || deleteAnnotation) {
+        feedbackLog.push({
+          imageId: inspectionNo,
+          predictedBy: "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: false,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: deleteAnnotation?.author || "",
+          annotatorTime: deleteAnnotation?.createdAt || "",
+          annotatorComment: deleteAnnotation?.comment || ""
+        });
+      } else {
+        feedbackLog.push({
+          imageId: inspectionNo,
+          predictedBy: "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: true,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: "",
+          annotatorTime: "",
+          annotatorComment: ""
+        });
+      }
+    }
+  });
+
+  // CSV headers
+  const headers = [
+    "Image ID",
+    "Predicted By",
+    "Confidence",
+    "Type",
+    "Accepted",
+    "Bounding Box X",
+    "Bounding Box Y",
+    "Bounding Box Width",
+    "Bounding Box Height",
+    "Annotator User",
+    "Annotator Time",
+    "Annotator Comment"
+  ];
+
+  // Convert to CSV rows
+  const rows = feedbackLog.map((entry) => {
+    return [
+      entry.imageId,
+      entry.predictedBy,
+      entry.confidence,
+      entry.type,
+      entry.accepted,
+      entry.boundingBoxX,
+      entry.boundingBoxY,
+      entry.boundingBoxWidth,
+      entry.boundingBoxHeight,
+      entry.annotatorUser,
+      entry.annotatorTime,
+      entry.annotatorComment
+    ].map(field => {
+      const escaped = String(field).replace(/"/g, '""');
+      return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') 
+        ? `"${escaped}"` 
+        : escaped;
+    });
+  });
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `feedback_log_${inspectionNo}_${new Date().toISOString().split('T')[0]}.csv`);
   link.style.visibility = 'hidden';
   
   document.body.appendChild(link);
@@ -633,6 +1003,12 @@ const InspectionUploadPage = () => {
   // Collapsible state for comments section
   const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
 
+  // Export dropdown state
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  
+  // Feedback Log export dropdown state
+  const [isFeedbackExportDropdownOpen, setIsFeedbackExportDropdownOpen] = useState(false);
+
   // Track which detectIds were added in this session (workaround for backend bug)
   const [addedDetectIds, setAddedDetectIds] = useState<Set<number>>(() => {
     // Load from localStorage on mount
@@ -663,6 +1039,27 @@ const InspectionUploadPage = () => {
   useEffect(() => {
     thermalPredictionsRef.current = thermalPredictions;
   }, [thermalPredictions]);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isExportDropdownOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setIsExportDropdownOpen(false);
+        }
+      }
+      if (isFeedbackExportDropdownOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setIsFeedbackExportDropdownOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExportDropdownOpen, isFeedbackExportDropdownOpen]);
 
   // Persist to localStorage whenever these change
   useEffect(() => {
@@ -731,6 +1128,7 @@ const InspectionUploadPage = () => {
    // === Predictions ===
 type InspectionModelDetects = {
   detectId: number;
+  detectName?: string | null; // Fault name from backend
   width: number;
   height: number;
   x: number;
@@ -751,9 +1149,6 @@ const fetchPredictions = async () => {
       `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`
     );
 
-    let errorCount = 0;
-    let faultCount = 0;
-
     // Filter out deleted detections first (backend bug workaround)
     const filteredData = (data || []).filter((det) => {
       if (deletedDetectIds.has(det.detectId)) {
@@ -765,27 +1160,41 @@ const fetchPredictions = async () => {
 
     console.log(`📊 Loaded ${data?.length || 0} predictions from backend, ${filteredData.length} after filtering deleted`);
 
+    // Count existing detections by type for proper numbering
+    let faultCount = 0;
+    let potentialFaultCount = 0;
+    let normalCount = 0;
+
     const detections: Prediction[] = filteredData.map((det) => {
       const label = (det.className ?? "").trim();
       
-      // Check if this detection already exists in current predictions with a custom name
-      const existing = thermalPredictions.find(p => p.detectId === det.detectId);
-      
+      // Use detectName from backend if available, otherwise check existing prediction, otherwise auto-generate
       let tag: string;
-      if (existing && existing.tag) {
-        // Preserve the existing custom name (user-entered or previously set)
-        tag = existing.tag;
-        console.log(`✅ Preserving custom name "${tag}" for detectId ${det.detectId}`);
+      
+      if (det.detectName && det.detectName.trim()) {
+        // Backend has a fault name saved - use it
+        tag = det.detectName.trim();
+        console.log(`✅ Using backend fault name "${tag}" for detectId ${det.detectId}`);
       } else {
-        // New detection from backend - use auto-generated name
-        if (label.toLowerCase() === "f") {
-          errorCount += 1;
-          tag = `Error ${errorCount}`;
-        } else if (label.toLowerCase() === "pf") {
-          faultCount += 1;
-          tag = `Fault ${faultCount}`;
+        // Check if this detection already exists in current predictions with a custom name
+        const existing = thermalPredictions.find(p => p.detectId === det.detectId);
+        
+        if (existing && existing.tag) {
+          // Preserve the existing custom name (user-entered or previously set)
+          tag = existing.tag;
+          console.log(`✅ Preserving custom name "${tag}" for detectId ${det.detectId}`);
         } else {
-          tag = "Normal";
+          // New detection from backend without detectName - use auto-generated name
+          if (label.toLowerCase() === "pf") {
+            faultCount += 1;
+            tag = `Fault ${faultCount}`;
+          } else if (label.toLowerCase() === "f") {
+            potentialFaultCount += 1;
+            tag = `Potentially Fault ${potentialFaultCount}`;
+          } else {
+            normalCount += 1;
+            tag = `Normal ${normalCount}`;
+          }
         }
       }
 
@@ -963,15 +1372,23 @@ const fetchPredictions = async () => {
           let faultName: string | undefined;
           
           if (detectId) {
-            // Try to find matching prediction to get the fault name
-            const matchingPrediction = thermalPredictionsRef.current.find(p => p.detectId === detectId);
-            if (matchingPrediction) {
-              faultName = matchingPrediction.tag;
+            // PRIORITY 1: Use detectName from backend if saved
+            if (entry.detect?.detectName && entry.detect.detectName.trim()) {
+              faultName = entry.detect.detectName.trim();
+              console.log(`✅ Using backend detectName "${faultName}" for timeline entry detectId ${detectId}`);
             } else {
-              // If no matching prediction, use className from backend
-              const className = entry.detect?.className;
-              if (className) {
-                faultName = className === "pf" ? "Potential Fault" : className === "f" ? "Fault" : "Normal";
+              // PRIORITY 2: Try to find matching prediction to get the fault name
+              const matchingPrediction = thermalPredictionsRef.current.find(p => p.detectId === detectId);
+              if (matchingPrediction) {
+                faultName = matchingPrediction.tag;
+                console.log(`✅ Using prediction tag "${faultName}" for timeline entry detectId ${detectId}`);
+              } else {
+                // PRIORITY 3: If no matching prediction, use className from backend as fallback
+                const className = entry.detect?.className;
+                if (className) {
+                  faultName = className === "pf" ? "Potential Fault" : className === "f" ? "Fault" : "Normal";
+                  console.log(`✅ Using className fallback "${faultName}" for timeline entry detectId ${detectId}`);
+                }
               }
             }
           }
@@ -1272,8 +1689,8 @@ const fetchPredictions = async () => {
       await fetchPredictions();
       await fetchAnnotations();
       
-      // Refresh the page immediately
-      window.location.reload();
+      // Don't reload - predictions are already updated
+      // window.location.reload();
     } catch (e1) {
       console.error("❌ Edit save failed:", e1);
       if (axios.isAxiosError(e1)) {
@@ -1388,10 +1805,9 @@ const fetchPredictions = async () => {
     // Refresh annotations timeline to show the delete entry
     await fetchAnnotations();
     
-    // Refresh the page immediately
-    window.location.reload();
+    // Don't reload - UI is already updated
+    // window.location.reload();
     
-    // Note: The cleanup code below won't execute after reload, but that's fine since the page will be fresh
     // Reset UI state
     setDeleteTargetIndex(null);
     setDeleteMode(false);
@@ -1401,8 +1817,8 @@ const fetchPredictions = async () => {
   // When user finishes drawing a rect on the thermal image
   const handleBBoxDrawn = (rect: DrawnRect) => {
     setPendingRect(rect);
-    // Open details modal
-    setDetailsModalOpen(true);
+    // Open comment modal directly (skip details modal)
+    setCommentModalOpen(true);
   };
 
   const resetAnnoState = () => {
@@ -1416,39 +1832,6 @@ const fetchPredictions = async () => {
     setAnnoComment("");
   };
 
-  // Save details -> update UI list and open comment modal
-  const saveDetailsAndAskComment = () => {
-    if (!pendingRect) return;
-    const name = annoFaultName.trim();
-    const confVal = parseFloat(annoConfidence);
-    if (!name || isNaN(confVal)) {
-      alert("Please enter Fault Name and a numeric Confidence (as percentage).");
-      return;
-    }
-
-    const label =
-      annoConditionType === "Faulty" ? "pf" : annoConditionType === "Potential Faulty" ? "f" : "normal";
-    const confidenceFraction = Math.max(0, Math.min(100, confVal)) / 100;
-
-    // Update the list/overlays immediately with fault name
-    setThermalPredictions((prev) => [
-      ...prev,
-      {
-        x: pendingRect.x,
-        y: pendingRect.y,
-        width: pendingRect.width,
-        height: pendingRect.height,
-        confidence: confidenceFraction,
-        label,
-        tag: name, // This is the user-entered fault name
-      },
-    ]);
-
-    // Now ask for comment
-    setDetailsModalOpen(false);
-    setCommentModalOpen(true);
-  };
-
   // Persist annotation audit with comment
   const saveAnnotationWithComment = async (comment: string) => {
     if (!inspectionNo || !pendingRect) return;
@@ -1458,8 +1841,29 @@ const fetchPredictions = async () => {
         annoConditionType === "Faulty" ? "pf" :
         annoConditionType === "Potential Faulty" ? "f" : "normal";
       const classId = cls === "pf" ? 2 : cls === "f" ? 1 : 0;
-      const confidencePercent = Math.max(0, Math.min(100, parseFloat(annoConfidence) || 0));
-      const confidence = confidencePercent / 100;
+      
+      // Auto-generate fault name based on condition type and count
+      const existingCount = thermalPredictions.filter(p => p.label === cls).length;
+      const autoFaultName = annoConditionType === "Faulty" ? `Faulty ${existingCount + 1}` : 
+                           annoConditionType === "Potential Faulty" ? `Potential Fault ${existingCount + 1}` : 
+                           `Normal ${existingCount + 1}`;
+      
+      // Default confidence to 0.95 (95%)
+      const confidence = 0.95;
+
+      // Update the list/overlays immediately with auto-generated fault name
+      setThermalPredictions((prev) => [
+        ...prev,
+        {
+          x: pendingRect.x,
+          y: pendingRect.y,
+          width: pendingRect.width,
+          height: pendingRect.height,
+          confidence: confidence,
+          label: cls,
+          tag: autoFaultName,
+        },
+      ]);
 
       const payload = {
         width: pendingRect.width,
@@ -1472,7 +1876,7 @@ const fetchPredictions = async () => {
         parentId: "image",
         author: "Shaveen",
         comment,
-        faultName: annoFaultName.trim() // Send fault name to backend
+        faultName: autoFaultName // Send auto-generated fault name to backend
       };
 
       console.log("📤 Sending ADD request with fault name:", payload);
@@ -1485,7 +1889,8 @@ const fetchPredictions = async () => {
       // Update the last added prediction with the detectId from response
       if (response.data?.detectId) {
         console.log("✅ Setting detectId:", response.data.detectId);
-        console.log("✅ Fault name from form:", annoFaultName.trim());
+        console.log("✅ Auto-generated fault name:", autoFaultName);
+        console.log("✅ Backend response detectName:", response.data.detectName);
         
         const detectId = response.data.detectId;
         const now = new Date().toISOString();
@@ -1494,14 +1899,15 @@ const fetchPredictions = async () => {
         setAddedDetectIds(prev => new Set(prev).add(detectId));
         
         // Create a local timeline entry since backend doesn't save Add operations
-        // Use the fault name entered by the user in the details modal
+        // Use the fault name from backend response (should match what we sent)
+        const savedFaultName = response.data.detectName || autoFaultName;
         const localEntry: AnnotationEntry = {
           anotationId: detectId, // Use detectId as temporary ID
           type: "add",
           comment: comment,
           author: "Shaveen",
           createdAt: now,
-          faultName: annoFaultName.trim() // This is the user-entered fault name from the modal
+          faultName: savedFaultName // Use backend's saved name
         };
         
         // Add to local timeline entries
@@ -1516,11 +1922,25 @@ const fetchPredictions = async () => {
         });
         console.log("✅ Created local timeline entry for Add operation:", localEntry);
         
+        // Update the prediction we just added with the complete backend response
         setThermalPredictions((prev) => {
           const updated = [...prev];
           if (updated.length > 0) {
-            updated[updated.length - 1].detectId = detectId;
-            console.log("✅ Updated prediction with detectId:", updated[updated.length - 1]);
+            const lastIndex = updated.length - 1;
+            // Update with all details from backend response
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              detectId: detectId,
+              tag: savedFaultName, // Use the saved fault name from backend
+              // Update other fields from backend if present
+              x: response.data.x ?? updated[lastIndex].x,
+              y: response.data.y ?? updated[lastIndex].y,
+              width: response.data.width ?? updated[lastIndex].width,
+              height: response.data.height ?? updated[lastIndex].height,
+              confidence: response.data.confidence ?? updated[lastIndex].confidence,
+              label: response.data.className ?? updated[lastIndex].label,
+            };
+            console.log("✅ Updated prediction with backend data:", updated[lastIndex]);
           }
           return updated;
         });
@@ -1528,12 +1948,11 @@ const fetchPredictions = async () => {
         console.warn("⚠️ No detectId in response!");
       }
 
-      // Refresh predictions and timeline to show the new entry properly sorted
-      await fetchPredictions();
+      // Refresh annotations timeline to show the new entry
       await fetchAnnotations();
       
-      // Refresh the page immediately
-      window.location.reload();
+      // Don't reload - predictions are already updated above
+      // window.location.reload();
     } catch (err) {
       console.error("❌ Saving annotation failed:", err);
       if (axios.isAxiosError(err)) {
@@ -1935,6 +2354,9 @@ const fetchPredictions = async () => {
 
             {/* Add/Edit/Delete controls (Step 1: Add) */}
             <div className="mt-3 flex items-center gap-3">
+              <span className="text-2xl font-bold text-red-600">
+                Annotate  
+              </span>
               <button
                 className={`px-4 py-2 rounded-lg text-white font-semibold ${
                   isAddMode ? "bg-blue-700" : "bg-blue-600 hover:bg-blue-700"
@@ -1988,8 +2410,8 @@ const fetchPredictions = async () => {
 
       {/* Annotations Made */}
       <section className="mt-8">
-        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-visible">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between relative z-10">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setIsAnnotationsExpanded(!isAnnotationsExpanded)}
@@ -2006,14 +2428,42 @@ const fetchPredictions = async () => {
               <span className="text-sm text-gray-500">{annotationsMade.length} change{annotationsMade.length !== 1 ? "s" : ""}</span>
             </div>
             {annotationsMade.length > 0 && (
-              <button
-                onClick={() => exportAnnotationsToCSV(annotationsMade, inspectionNo || "")}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors shadow-sm"
-                title="Download annotations as CSV"
-              >
-                <Download className="h-5 w-5" />
-                Download as CSV
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors shadow-sm"
+                  title="Export annotations"
+                >
+                  <Download className="h-5 w-5" />
+                  Export
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                
+                {isExportDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white shadow-2xl border border-gray-200 z-[9999] py-1">
+                    <button
+                      onClick={() => {
+                        exportAnnotationsToCSV(annotationsMade, inspectionNo || "", transformerNo || "");
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                    >
+                      <Download className="h-4 w-4 text-gray-500" />
+                      <span>Export as CSV</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportAnnotationsToJSON(annotationsMade, inspectionNo || "", transformerNo || "");
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                    >
+                      <Download className="h-4 w-4 text-gray-500" />
+                      <span>Export as JSON</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           {isAnnotationsExpanded && (
@@ -2031,7 +2481,9 @@ const fetchPredictions = async () => {
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b-2 border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Change Type</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Image ID</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Transformer ID</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Action Taken</th>
                         <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Fault Name</th>
                         <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Comment</th>
                         <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">User</th>
@@ -2044,6 +2496,16 @@ const fetchPredictions = async () => {
                           key={a.anotationId || `local-${idx}`} 
                           className="hover:bg-gray-50 transition-colors duration-150"
                         >
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {inspectionNo}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {transformerNo || "—"}
+                            </span>
+                          </td>
                           <td className="px-6 py-6 whitespace-nowrap">
                             <span className={`inline-flex items-center gap-2.5 rounded-full px-5 py-2 text-lg font-semibold shadow-sm ${
                               a.type.toLowerCase() === "add"
@@ -2214,6 +2676,55 @@ const fetchPredictions = async () => {
                 </div>
               )}
             </div>
+        </div>
+      </section>
+
+      {/* Feedback Log */}
+      <section className="mt-10">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-visible">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between relative z-10">
+            <h3 className="text-3xl font-bold tracking-tight text-red-600">
+              Feedback Log
+            </h3>
+            <div className="relative">
+              <button
+                onClick={() => setIsFeedbackExportDropdownOpen(!isFeedbackExportDropdownOpen)}
+                disabled={thermalPredictions.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 
+                          disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg 
+                          font-semibold transition-colors shadow-sm"
+              >
+                <Download className="h-5 w-5" />
+                Export
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              
+              {isFeedbackExportDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white shadow-2xl border border-gray-200 z-[9999] py-1">
+                  <button
+                    onClick={() => {
+                      exportFeedbackLogToCSV(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds);
+                      setIsFeedbackExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                  >
+                    <Download className="h-4 w-4 text-gray-500" />
+                    <span>Export as CSV</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      exportFeedbackLogToJSON(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds);
+                      setIsFeedbackExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                  >
+                    <Download className="h-4 w-4 text-gray-500" />
+                    <span>Export as JSON</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2447,64 +2958,7 @@ const fetchPredictions = async () => {
       </section>
 
       {/* --------- Details Modal (Fault Name, Condition, Confidence) --------- */}
-      <ModalShell
-        open={detailsModalOpen}
-        onClose={resetAnnoState}
-        title="Add Annotation Details"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Fault Name</label>
-            <input
-              value={annoFaultName}
-              onChange={(e) => setAnnoFaultName(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
-              placeholder="e.g., Hotspot near bushing"
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1">Condition Type</label>
-              <select
-                className="w-full border rounded-lg px-3 py-2"
-                value={annoConditionType}
-                onChange={(e) => setAnnoConditionType(e.target.value as any)}
-              >
-                <option>Faulty</option>
-                <option>Normal</option>
-                <option>Potential Faulty</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">Confidence (%)</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={0.1}
-                value={annoConfidence}
-                onChange={(e) => setAnnoConfidence(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="e.g., 92.5"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button className="px-4 py-2 rounded-lg border" onClick={resetAnnoState}>
-              Cancel
-            </button>
-            <button
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white"
-              onClick={saveDetailsAndAskComment}
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </ModalShell>
-
-      {/* ------------------------ Comment confirmation modal ------------------------ */}
+      {/* ------------------------ Comment modal with condition type ------------------------ */}
       <ModalShell
         open={commentModalOpen}
         onClose={resetAnnoState}
@@ -2515,12 +2969,32 @@ const fetchPredictions = async () => {
             Please add a comment to confirm this annotation. This will be saved with
             annotation type, user, and timestamp.
           </p>
-          <textarea
-            className="w-full min-h-28 border rounded-lg px-3 py-2"
-            value={annoComment}
-            onChange={(e) => setAnnoComment(e.target.value)}
-            placeholder="Comment about why this box was added"
-          />
+          
+          {/* Condition Type */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">Condition Type</label>
+            <select
+              className="w-full border rounded-lg px-3 py-2"
+              value={annoConditionType}
+              onChange={(e) => setAnnoConditionType(e.target.value as any)}
+            >
+              <option>Faulty</option>
+              <option>Normal</option>
+              <option>Potential Faulty</option>
+            </select>
+          </div>
+          
+          {/* Comment */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">Comment</label>
+            <textarea
+              className="w-full min-h-28 border rounded-lg px-3 py-2"
+              value={annoComment}
+              onChange={(e) => setAnnoComment(e.target.value)}
+              placeholder="Comment about why this box was added"
+            />
+          </div>
+          
           <div className="flex justify-end gap-2">
             <button className="px-4 py-2 rounded-lg border" onClick={resetAnnoState}>
               Cancel
@@ -2537,6 +3011,7 @@ const fetchPredictions = async () => {
           </div>
         </div>
       </ModalShell>
+      
       {/* Delete comment modal */}
       <CommentModal
         open={deleteMode && deleteTargetIndex != null}

@@ -1,6 +1,8 @@
 package com.orbit.Orbit.service;
 
+import com.orbit.Orbit.dto.DetectionResponse;
 import com.orbit.Orbit.dto.RoboflowResponse;
+import com.orbit.Orbit.dto.TimelineResponse;
 import com.orbit.Orbit.dto.UpdateDetectionRequest;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.InspectionDetectsTimeline;
@@ -12,6 +14,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Transactional
 @Service
@@ -63,6 +66,7 @@ public class DetectsService {
         new_detect.setClassId(req.getClassId());
         new_detect.setClassName(req.getClassName());
         new_detect.setParentId(req.getParentId());
+        new_detect.setDetectName(req.getFaultName()); // Save user-entered fault name
         InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(new_detect,req.getAuthor(), req.getComment(),"add");
         return inspectionModelDetectsRepository.save(new_detect);
 
@@ -93,6 +97,10 @@ public class DetectsService {
         existing.setY(req.getY());
         existing.setConfidence(req.getConfidence());
         existing.setClassId(req.getClassId());
+        // Update fault name if provided
+        if (req.getFaultName() != null) {
+            existing.setDetectName(req.getFaultName());
+        }
 
         //ADD that to the timeline
         InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(existing,req.getAuthor(), req.getComment(),"edit");
@@ -102,6 +110,40 @@ public class DetectsService {
 
     public List<InspectionDetectsTimeline> timelineget(String inspectionNumber){
         return inspectionDetectsTimelineRepository.findByInspection_InspectionNumberOrderByCreatedAtDesc(inspectionNumber);
+    }
+
+    public List<DetectionResponse> getAllDetects(){
+        List<InspectionModelDetects> detections = inspectionModelDetectsRepository.findAll();
+        return detections.stream()
+            .map(d -> new DetectionResponse(
+                d.getDetectId(),
+                d.getInspection() != null ? d.getInspection().getInspectionNumber() : null,
+                d.getWidth(),
+                d.getHeight(),
+                d.getX(),
+                d.getY(),
+                d.getConfidence(),
+                d.getClassId(),
+                d.getClassName(),
+                d.getDetectionId(),
+                d.getParentId()
+            ))
+            .collect(Collectors.toList());
+    }
+
+    public List<TimelineResponse> getAllTimeline(){
+        List<InspectionDetectsTimeline> timeline = inspectionDetectsTimelineRepository.findAll();
+        return timeline.stream()
+            .map(t -> new TimelineResponse(
+                t.getAnotationId(),
+                t.getDetect() != null ? t.getDetect().getDetectId() : null,
+                t.getInspection() != null ? t.getInspection().getInspectionNumber() : null,
+                t.getType(),
+                t.getAuthor(),
+                t.getComment(),
+                t.getCreatedAt()
+            ))
+            .collect(Collectors.toList());
     }
 
 
