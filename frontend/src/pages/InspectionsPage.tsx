@@ -126,18 +126,61 @@ const InspectionsPage: React.FC = () => {
         fetchInspections();
     }, []);
 
-    // Fetch annotations count
+    // Fetch annotations count (including localStorage entries)
     useEffect(() => {
         const fetchAnnotationsCount = async () => {
             try {
                 const res = await axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all');
-                setAnnotationsCount(res.data.length);
+                let totalCount = res.data.length;
+                
+                // Add localStorage timeline entries count for each inspection
+                // Get all unique inspection numbers from backend timeline
+                const inspectionNumbers = [...new Set(res.data.map((entry: any) => {
+                    const inspNo = entry.detect?.inspectionNumber || entry.inspectionNumber;
+                    return inspNo;
+                }).filter(Boolean))];
+                
+                // Also check all inspections in the list
+                inspections.forEach(insp => {
+                    if (!inspectionNumbers.includes(insp.inspectionNo)) {
+                        inspectionNumbers.push(insp.inspectionNo);
+                    }
+                });
+                
+                // Count localStorage entries for all inspections
+                inspectionNumbers.forEach((inspNo) => {
+                    const storedTimeline = localStorage.getItem(`localTimeline_${inspNo}`);
+                    if (storedTimeline) {
+                        try {
+                            const localEntries = JSON.parse(storedTimeline);
+                            totalCount += localEntries.length;
+                        } catch (e) {
+                            console.error(`Failed to parse localStorage timeline for ${inspNo}:`, e);
+                        }
+                    }
+                });
+                
+                setAnnotationsCount(totalCount);
             } catch (err) {
                 console.error('Error fetching annotations count:', err);
+                // If API fails, still try to count localStorage entries
+                let localCount = 0;
+                inspections.forEach(insp => {
+                    const storedTimeline = localStorage.getItem(`localTimeline_${insp.inspectionNo}`);
+                    if (storedTimeline) {
+                        try {
+                            const localEntries = JSON.parse(storedTimeline);
+                            localCount += localEntries.length;
+                        } catch (e) {
+                            console.error(`Failed to parse localStorage timeline for ${insp.inspectionNo}:`, e);
+                        }
+                    }
+                });
+                setAnnotationsCount(localCount);
             }
         };
         fetchAnnotationsCount();
-    }, []);
+    }, [inspections]);
 
     const [filters, setFilters] = useState({
         transformerNo: "",
@@ -186,7 +229,22 @@ const InspectionsPage: React.FC = () => {
             ]);
 
             const allDetections = detectionsRes.data;
-            const allTimeline = timelineRes.data;
+            let allTimeline = timelineRes.data;
+            
+            // Load local timeline entries from localStorage for each inspection
+            // Backend doesn't properly save Add and Delete operations, so we need to check localStorage
+            const inspectionNumbers = [...new Set(allDetections.map((d: any) => d.inspectionNumber).filter(Boolean))];
+            inspectionNumbers.forEach((inspNo) => {
+                const storedTimeline = localStorage.getItem(`localTimeline_${inspNo}`);
+                if (storedTimeline) {
+                    try {
+                        const localEntries = JSON.parse(storedTimeline);
+                        allTimeline = [...allTimeline, ...localEntries];
+                    } catch (e) {
+                        console.error(`Failed to parse localStorage timeline for ${inspNo}:`, e);
+                    }
+                }
+            });
 
             const feedbackLog: any[] = [];
             const detectionsByInspection: { [key: string]: any[] } = {};
@@ -198,9 +256,11 @@ const InspectionsPage: React.FC = () => {
                 detectionsByInspection[inspNo].push(detection);
             });
 
+            // Group timeline by detection ID (handle both backend and localStorage structures)
             const timelineByDetectId: { [key: string]: any[] } = {};
             allTimeline.forEach((entry: any) => {
-                const detectId = entry.detectId;
+                // Backend entries have detect.detectId, localStorage entries have anotationId
+                const detectId = entry.detect?.detectId || entry.anotationId;
                 if (detectId) {
                     if (!timelineByDetectId[detectId]) {
                         timelineByDetectId[detectId] = [];
@@ -212,7 +272,11 @@ const InspectionsPage: React.FC = () => {
             const addedDetectIds = new Set<number>();
             allTimeline.forEach((entry: any) => {
                 if (entry.type === 'add') {
-                    addedDetectIds.add(entry.detectId);
+                    // Backend entries have detect.detectId, localStorage entries have anotationId
+                    const detectId = entry.detect?.detectId || entry.anotationId;
+                    if (detectId) {
+                        addedDetectIds.add(detectId);
+                    }
                 }
             });
 
@@ -364,7 +428,22 @@ const InspectionsPage: React.FC = () => {
             ]);
 
             const allDetections = detectionsRes.data;
-            const allTimeline = timelineRes.data;
+            let allTimeline = timelineRes.data;
+            
+            // Load local timeline entries from localStorage for each inspection
+            // Backend doesn't properly save Add and Delete operations, so we need to check localStorage
+            const inspectionNumbers = [...new Set(allDetections.map((d: any) => d.inspectionNumber).filter(Boolean))];
+            inspectionNumbers.forEach((inspNo) => {
+                const storedTimeline = localStorage.getItem(`localTimeline_${inspNo}`);
+                if (storedTimeline) {
+                    try {
+                        const localEntries = JSON.parse(storedTimeline);
+                        allTimeline = [...allTimeline, ...localEntries];
+                    } catch (e) {
+                        console.error(`Failed to parse localStorage timeline for ${inspNo}:`, e);
+                    }
+                }
+            });
 
             const feedbackLog: any[] = [];
             const detectionsByInspection: { [key: string]: any[] } = {};
@@ -376,10 +455,11 @@ const InspectionsPage: React.FC = () => {
                 detectionsByInspection[inspNo].push(detection);
             });
 
-            // Group timeline by detection ID
+            // Group timeline by detection ID (handle both backend and localStorage structures)
             const timelineByDetectId: { [key: string]: any[] } = {};
             allTimeline.forEach((entry: any) => {
-                const detectId = entry.detectId;
+                // Backend entries have detect.detectId, localStorage entries have anotationId
+                const detectId = entry.detect?.detectId || entry.anotationId;
                 if (detectId) {
                     if (!timelineByDetectId[detectId]) {
                         timelineByDetectId[detectId] = [];
@@ -392,7 +472,11 @@ const InspectionsPage: React.FC = () => {
             const addedDetectIds = new Set<number>();
             allTimeline.forEach((entry: any) => {
                 if (entry.type === 'add') {
-                    addedDetectIds.add(entry.detectId);
+                    // Backend entries have detect.detectId, localStorage entries have anotationId
+                    const detectId = entry.detect?.detectId || entry.anotationId;
+                    if (detectId) {
+                        addedDetectIds.add(detectId);
+                    }
                 }
             });
 
