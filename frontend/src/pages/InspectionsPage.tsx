@@ -223,17 +223,28 @@ const InspectionsPage: React.FC = () => {
     // Export All Feedback Logs to CSV
     const exportAllFeedbackLogsToCSV = async () => {
         try {
-            const [detectionsRes, timelineRes] = await Promise.all([
+            const [detectionsRes, timelineRes, inspectionsRes] = await Promise.all([
                 axios.get('http://localhost:8080/api/v1/inspections/analyze/all'),
-                axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all')
+                axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all'),
+                axios.get('http://localhost:8080/api/v1/inspections')
             ]);
 
             const allDetections = detectionsRes.data;
             let allTimeline = timelineRes.data;
             
+            // Create inspection to transformer mapping
+            const inspectionToTransformer: { [key: string]: string } = {};
+            inspectionsRes.data.forEach((insp: any) => {
+                inspectionToTransformer[insp.inspectionNumber] = insp.transformerNumber;
+            });
+            
             // Load local timeline entries from localStorage for each inspection
             // Backend doesn't properly save Add and Delete operations, so we need to check localStorage
             const inspectionNumbers = [...new Set(allDetections.map((d: any) => d.inspectionNumber).filter(Boolean))];
+            
+            // Also load deletedDetectIds for each inspection
+            const allDeletedDetectIds = new Set<number>();
+            
             inspectionNumbers.forEach((inspNo) => {
                 const storedTimeline = localStorage.getItem(`localTimeline_${inspNo}`);
                 if (storedTimeline) {
@@ -242,6 +253,17 @@ const InspectionsPage: React.FC = () => {
                         allTimeline = [...allTimeline, ...localEntries];
                     } catch (e) {
                         console.error(`Failed to parse localStorage timeline for ${inspNo}:`, e);
+                    }
+                }
+                
+                // Load deletedDetectIds
+                const storedDeleted = localStorage.getItem(`deletedDetectIds_${inspNo}`);
+                if (storedDeleted) {
+                    try {
+                        const deletedIds = JSON.parse(storedDeleted);
+                        deletedIds.forEach((id: number) => allDeletedDetectIds.add(id));
+                    } catch (e) {
+                        console.error(`Failed to parse localStorage deletedDetectIds for ${inspNo}:`, e);
                     }
                 }
             });
@@ -281,18 +303,35 @@ const InspectionsPage: React.FC = () => {
             });
 
             Object.entries(detectionsByInspection).forEach(([inspectionNo, detections]) => {
+                // Get all delete annotations for this inspection from timeline
+                const deleteAnnotationsForInspection = allTimeline.filter((entry: any) => {
+                    return entry.type === 'delete';
+                });
+                
                 detections.forEach((detection: any) => {
                     const detectId = detection.detectId;
                     const isUserAdded = addedDetectIds.has(detectId);
+                    const isDeleted = allDeletedDetectIds.has(detectId);
                     const relatedTimeline = timelineByDetectId[detectId] || [];
                     
                     const editAnnotation = relatedTimeline.find((a: any) => a.type === 'edit');
-                    const deleteAnnotation = relatedTimeline.find((a: any) => a.type === 'delete');
+                    // For delete annotations, also check localStorage entries that don't have detectId
+                    let deleteAnnotation = relatedTimeline.find((a: any) => a.type === 'delete');
+                    
+                    // If not found in timeline by detectId and detection is marked as deleted,
+                    // try to find the most recent delete annotation for this inspection
+                    if (!deleteAnnotation && isDeleted && deleteAnnotationsForInspection.length > 0) {
+                        // Get the most recent delete annotation (they're sorted by timestamp)
+                        deleteAnnotation = deleteAnnotationsForInspection[0];
+                    }
+                    
                     const addAnnotation = relatedTimeline.find((a: any) => a.type === 'add');
 
                     if (isUserAdded) {
                         feedbackLog.push({
                             imageId: inspectionNo,
+                            inspectionNo: inspectionNo,
+                            transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                             predictedBy: "annotator",
                             confidence: 1,
                             type: detection.className,
@@ -309,6 +348,8 @@ const InspectionsPage: React.FC = () => {
                         if (editAnnotation) {
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 predictedBy: "Model",
                                 confidence: detection.confidence,
                                 type: detection.className,
@@ -324,6 +365,8 @@ const InspectionsPage: React.FC = () => {
 
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 predictedBy: "annotator",
                                 confidence: 1,
                                 type: detection.className,
@@ -336,9 +379,11 @@ const InspectionsPage: React.FC = () => {
                                 annotatorTime: editAnnotation.createdAt,
                                 annotatorComment: editAnnotation.comment
                             });
-                        } else if (deleteAnnotation) {
+                        } else if (isDeleted || deleteAnnotation) {
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 predictedBy: "Model",
                                 confidence: detection.confidence,
                                 type: detection.className,
@@ -347,13 +392,15 @@ const InspectionsPage: React.FC = () => {
                                 boundingBoxY: detection.y,
                                 boundingBoxWidth: detection.width,
                                 boundingBoxHeight: detection.height,
-                                annotatorUser: deleteAnnotation.author,
-                                annotatorTime: deleteAnnotation.createdAt,
-                                annotatorComment: deleteAnnotation.comment
+                                annotatorUser: deleteAnnotation ? deleteAnnotation.author : '',
+                                annotatorTime: deleteAnnotation ? deleteAnnotation.createdAt : '',
+                                annotatorComment: deleteAnnotation ? deleteAnnotation.comment : ''
                             });
                         } else {
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 predictedBy: "Model",
                                 confidence: detection.confidence,
                                 type: detection.className,
@@ -374,6 +421,8 @@ const InspectionsPage: React.FC = () => {
             // Create CSV content
             const headers = [
                 'Image ID',
+                'Inspection No',
+                'Transformer ID',
                 'Predicted By',
                 'Confidence',
                 'Type',
@@ -389,6 +438,8 @@ const InspectionsPage: React.FC = () => {
 
             const csvRows = feedbackLog.map(entry => [
                 entry.imageId,
+                entry.inspectionNo,
+                entry.transformerId,
                 entry.predictedBy,
                 entry.confidence,
                 entry.type,
@@ -421,18 +472,29 @@ const InspectionsPage: React.FC = () => {
     // Export All Feedback Logs to JSON - FR3.3: Feedback Integration for Model Improvement
     const exportAllFeedbackLogsToJSON = async () => {
         try {
-            // Fetch all detections and timeline data
-            const [detectionsRes, timelineRes] = await Promise.all([
+            // Fetch all detections, timeline data, and inspections
+            const [detectionsRes, timelineRes, inspectionsRes] = await Promise.all([
                 axios.get('http://localhost:8080/api/v1/inspections/analyze/all'),
-                axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all')
+                axios.get('http://localhost:8080/api/v1/inspections/analyze/timeline/all'),
+                axios.get('http://localhost:8080/api/v1/inspections')
             ]);
 
             const allDetections = detectionsRes.data;
             let allTimeline = timelineRes.data;
             
+            // Create inspection to transformer mapping
+            const inspectionToTransformer: { [key: string]: string } = {};
+            inspectionsRes.data.forEach((insp: any) => {
+                inspectionToTransformer[insp.inspectionNumber] = insp.transformerNumber;
+            });
+            
             // Load local timeline entries from localStorage for each inspection
             // Backend doesn't properly save Add and Delete operations, so we need to check localStorage
             const inspectionNumbers = [...new Set(allDetections.map((d: any) => d.inspectionNumber).filter(Boolean))];
+            
+            // Also load deletedDetectIds for each inspection
+            const allDeletedDetectIds = new Set<number>();
+            
             inspectionNumbers.forEach((inspNo) => {
                 const storedTimeline = localStorage.getItem(`localTimeline_${inspNo}`);
                 if (storedTimeline) {
@@ -441,6 +503,17 @@ const InspectionsPage: React.FC = () => {
                         allTimeline = [...allTimeline, ...localEntries];
                     } catch (e) {
                         console.error(`Failed to parse localStorage timeline for ${inspNo}:`, e);
+                    }
+                }
+                
+                // Load deletedDetectIds
+                const storedDeleted = localStorage.getItem(`deletedDetectIds_${inspNo}`);
+                if (storedDeleted) {
+                    try {
+                        const deletedIds = JSON.parse(storedDeleted);
+                        deletedIds.forEach((id: number) => allDeletedDetectIds.add(id));
+                    } catch (e) {
+                        console.error(`Failed to parse localStorage deletedDetectIds for ${inspNo}:`, e);
                     }
                 }
             });
@@ -482,19 +555,36 @@ const InspectionsPage: React.FC = () => {
 
             // Process each inspection's detections
             Object.entries(detectionsByInspection).forEach(([inspectionNo, detections]) => {
+                // Get all delete annotations for this inspection from timeline
+                const deleteAnnotationsForInspection = allTimeline.filter((entry: any) => {
+                    return entry.type === 'delete';
+                });
+                
                 detections.forEach((detection: any) => {
                     const detectId = detection.detectId;
                     const isUserAdded = addedDetectIds.has(detectId);
+                    const isDeleted = allDeletedDetectIds.has(detectId);
                     const relatedTimeline = timelineByDetectId[detectId] || [];
                     
                     const editAnnotation = relatedTimeline.find((a: any) => a.type === 'edit');
-                    const deleteAnnotation = relatedTimeline.find((a: any) => a.type === 'delete');
+                    // For delete annotations, also check localStorage entries that don't have detectId
+                    let deleteAnnotation = relatedTimeline.find((a: any) => a.type === 'delete');
+                    
+                    // If not found in timeline by detectId and detection is marked as deleted,
+                    // try to find the most recent delete annotation for this inspection
+                    if (!deleteAnnotation && isDeleted && deleteAnnotationsForInspection.length > 0) {
+                        // Get the most recent delete annotation (they're sorted by timestamp)
+                        deleteAnnotation = deleteAnnotationsForInspection[0];
+                    }
+                    
                     const addAnnotation = relatedTimeline.find((a: any) => a.type === 'add');
 
                     if (isUserAdded) {
                         // User-added anomaly: only one entry
                         feedbackLog.push({
                             imageId: inspectionNo,
+                            inspectionNo: inspectionNo,
+                            transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                             "predicted by": "annotator",
                             confidence: 1,
                             type: detection.className,
@@ -517,6 +607,8 @@ const InspectionsPage: React.FC = () => {
                             // EDITED: Keep original model prediction with accepted=false
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 "predicted by": "Model",
                                 confidence: detection.confidence,
                                 type: detection.className,
@@ -533,6 +625,8 @@ const InspectionsPage: React.FC = () => {
                             // Add new entry with edited position
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 "predicted by": "annotator",
                                 confidence: 1,
                                 type: detection.className,
@@ -549,10 +643,12 @@ const InspectionsPage: React.FC = () => {
                                     comment: editAnnotation.comment
                                 }
                             });
-                        } else if (deleteAnnotation) {
+                        } else if (isDeleted || deleteAnnotation) {
                             // DELETED: Keep original model prediction with accepted=false
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 "predicted by": "Model",
                                 confidence: detection.confidence,
                                 type: detection.className,
@@ -563,16 +659,18 @@ const InspectionsPage: React.FC = () => {
                                     width: detection.width,
                                     height: detection.height
                                 },
-                                "annotator metadata": {
+                                "annotator metadata": deleteAnnotation ? {
                                     user: deleteAnnotation.author,
                                     time: deleteAnnotation.createdAt,
                                     comment: deleteAnnotation.comment
-                                }
+                                } : null
                             });
                         } else {
                             // UNCHANGED: Keep original model prediction with accepted=true
                             feedbackLog.push({
                                 imageId: inspectionNo,
+                                inspectionNo: inspectionNo,
+                                transformerId: inspectionToTransformer[inspectionNo] || 'unknown',
                                 "predicted by": "Model",
                                 confidence: detection.confidence,
                                 type: detection.className,

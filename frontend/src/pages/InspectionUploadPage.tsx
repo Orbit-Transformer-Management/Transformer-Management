@@ -179,7 +179,8 @@ const exportFeedbackLogToJSON = (
   annotations: AnnotationEntry[], 
   inspectionNo: string,
   addedDetectIds: Set<number>,
-  deletedDetectIds: Set<number>
+  deletedDetectIds: Set<number>,
+  transformerId: string
 ) => {
   if (predictions.length === 0 && annotations.length === 0) {
     alert("No detection data to export!");
@@ -203,6 +204,8 @@ const exportFeedbackLogToJSON = (
       // User-added anomaly: only one entry
       feedbackLog.push({
         imageId: inspectionNo,
+        inspectionNo: inspectionNo,
+        transformerId: transformerId,
         "predicted by": "annotator",
         confidence: 1,
         type: pred.label,
@@ -228,6 +231,8 @@ const exportFeedbackLogToJSON = (
         // Since we only have current state, we'll mark the model prediction as not accepted
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           "predicted by": "Model",
           confidence: pred.confidence,
           type: pred.label,
@@ -244,6 +249,8 @@ const exportFeedbackLogToJSON = (
         // Add new entry with edited position
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           "predicted by": "annotator",
           confidence: 1,
           type: pred.label,
@@ -264,6 +271,8 @@ const exportFeedbackLogToJSON = (
         // DELETED: Keep original model prediction with accepted=false
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           "predicted by": "Model",
           confidence: pred.confidence,
           type: pred.label,
@@ -284,6 +293,8 @@ const exportFeedbackLogToJSON = (
         // UNCHANGED: Keep original model prediction with accepted=true
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           "predicted by": "Model",
           confidence: pred.confidence,
           type: pred.label,
@@ -308,6 +319,8 @@ const exportFeedbackLogToJSON = (
   deletedAnnotations.forEach(delAnnotation => {
     feedbackLog.push({
       imageId: inspectionNo,
+      inspectionNo: inspectionNo,
+      transformerId: transformerId,
       "predicted by": "Model",
       confidence: 0,
       type: "deleted",
@@ -348,7 +361,8 @@ const exportFeedbackLogToCSV = (
   annotations: AnnotationEntry[], 
   inspectionNo: string,
   addedDetectIds: Set<number>,
-  deletedDetectIds: Set<number>
+  deletedDetectIds: Set<number>,
+  transformerId: string
 ) => {
   if (predictions.length === 0 && annotations.length === 0) {
     alert("No detection data to export!");
@@ -370,6 +384,8 @@ const exportFeedbackLogToCSV = (
     if (isUserAdded) {
       feedbackLog.push({
         imageId: inspectionNo,
+        inspectionNo: inspectionNo,
+        transformerId: transformerId,
         predictedBy: "annotator",
         confidence: 1,
         type: pred.label,
@@ -386,6 +402,8 @@ const exportFeedbackLogToCSV = (
       if (editAnnotation) {
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           predictedBy: "Model",
           confidence: pred.confidence,
           type: pred.label,
@@ -401,6 +419,8 @@ const exportFeedbackLogToCSV = (
         
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           predictedBy: "annotator",
           confidence: 1,
           type: pred.label,
@@ -416,6 +436,8 @@ const exportFeedbackLogToCSV = (
       } else if (isDeleted || deleteAnnotation) {
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           predictedBy: "Model",
           confidence: pred.confidence,
           type: pred.label,
@@ -431,6 +453,8 @@ const exportFeedbackLogToCSV = (
       } else {
         feedbackLog.push({
           imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
           predictedBy: "Model",
           confidence: pred.confidence,
           type: pred.label,
@@ -450,6 +474,8 @@ const exportFeedbackLogToCSV = (
   // CSV headers
   const headers = [
     "Image ID",
+    "Inspection No",
+    "Transformer ID",
     "Predicted By",
     "Confidence",
     "Type",
@@ -467,6 +493,8 @@ const exportFeedbackLogToCSV = (
   const rows = feedbackLog.map((entry) => {
     return [
       entry.imageId,
+      entry.inspectionNo,
+      entry.transformerId,
       entry.predictedBy,
       entry.confidence,
       entry.type,
@@ -2707,7 +2735,7 @@ const fetchPredictions = async () => {
                 <div className="absolute right-0 mt-2 w-56 bg-white shadow-2xl border border-gray-200 z-[9999] py-1">
                   <button
                     onClick={() => {
-                      exportFeedbackLogToCSV(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds);
+                      exportFeedbackLogToCSV(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "");
                       setIsFeedbackExportDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
@@ -2717,7 +2745,7 @@ const fetchPredictions = async () => {
                   </button>
                   <button
                     onClick={() => {
-                      exportFeedbackLogToJSON(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds);
+                      exportFeedbackLogToJSON(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "");
                       setIsFeedbackExportDropdownOpen(false);
                     }}
                     className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
