@@ -1,8 +1,6 @@
 package com.orbit.Orbit.service;
 
-import com.orbit.Orbit.dto.CommentResponse;
-import com.orbit.Orbit.dto.InspectionRequest;
-import com.orbit.Orbit.dto.InspectionResponse;
+import com.orbit.Orbit.dto.*;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.InspectionComment;
 import com.orbit.Orbit.model.InspectionModelDetects;
@@ -21,7 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.orbit.Orbit.dto.RoboflowResponse;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -127,7 +124,7 @@ public class InspectionService {
         return new InspectionResponse(updatedInspection);
     }
 
-    public List<InspectionModelDetects> getPredictions(String inspectionNumber) {
+    public List<DetectionResponse> getPredictions(String inspectionNumber) {
         return detectsService.get(inspectionNumber);
     }
 

@@ -85,14 +85,14 @@ public class InspectionController {
     //Analyze
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze")
-    public ResponseEntity<List<InspectionModelDetects>> analyzeImage(@PathVariable String inspectionNumber) {
-        List<InspectionModelDetects> detections = detectsService.get(inspectionNumber);
+    public ResponseEntity<List<DetectionResponse>> analyzeImage(@PathVariable String inspectionNumber) {
+        List<DetectionResponse> detections = detectsService.get(inspectionNumber);
         return ResponseEntity.ok(detections);
     }
 
     @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze/timeline")
-    public ResponseEntity<List<InspectionDetectsTimeline>> getTimeline(@PathVariable String inspectionNumber) {
-        List<InspectionDetectsTimeline> detections = detectsService.timelineget(inspectionNumber);
+    public ResponseEntity<List<TimelineResponse>> getTimeline(@PathVariable String inspectionNumber) {
+        List<TimelineResponse> detections = detectsService.timelineget(inspectionNumber);
         return ResponseEntity.ok(detections);
     }
 

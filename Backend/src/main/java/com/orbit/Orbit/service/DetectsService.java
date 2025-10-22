@@ -49,8 +49,25 @@ public class DetectsService {
         }
     }
 
-    public List<InspectionModelDetects> get(String inspectionNumber){
-        return inspectionModelDetectsRepository.findByInspection_InspectionNumber(inspectionNumber);
+    public List<DetectionResponse> get(String inspectionNumber) {
+        List<InspectionModelDetects> detections =
+                inspectionModelDetectsRepository.findByInspection_InspectionNumber(inspectionNumber);
+
+        return detections.stream()
+                .map(d -> new DetectionResponse(
+                        d.getDetectId(),
+                        d.getInspection() != null ? d.getInspection().getInspectionNumber() : null,
+                        d.getWidth(),
+                        d.getHeight(),
+                        d.getX(),
+                        d.getY(),
+                        d.getConfidence(),
+                        d.getClassId(),
+                        d.getClassName(),
+                        d.getDetectionId(),
+                        d.getParentId()
+                ))
+                .collect(Collectors.toList());
     }
 
     public InspectionModelDetects add(UpdateDetectionRequest req,String inspectionNumber){
@@ -108,8 +125,22 @@ public class DetectsService {
         return inspectionModelDetectsRepository.save(existing);
     }
 
-    public List<InspectionDetectsTimeline> timelineget(String inspectionNumber){
-        return inspectionDetectsTimelineRepository.findByInspection_InspectionNumberOrderByCreatedAtDesc(inspectionNumber);
+    public List<TimelineResponse> timelineget(String inspectionNumber) {
+        List<InspectionDetectsTimeline> timeline =
+                inspectionDetectsTimelineRepository
+                        .findByInspection_InspectionNumberOrderByCreatedAtDesc(inspectionNumber);
+
+        return timeline.stream()
+                .map(t -> new TimelineResponse(
+                        t.getAnotationId(),
+                        t.getDetect() != null ? t.getDetect().getDetectId() : null,
+                        t.getInspection() != null ? t.getInspection().getInspectionNumber() : null,
+                        t.getType(),
+                        t.getAuthor(),
+                        t.getComment(),
+                        t.getCreatedAt()
+                ))
+                .collect(Collectors.toList());
     }
 
     public List<DetectionResponse> getAllDetects(){
