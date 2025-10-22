@@ -1689,8 +1689,8 @@ const fetchPredictions = async () => {
       await fetchPredictions();
       await fetchAnnotations();
       
-      // Don't reload - predictions are already updated
-      // window.location.reload();
+      // Refresh the page after successful edit
+      window.location.reload();
     } catch (e1) {
       console.error("❌ Edit save failed:", e1);
       if (axios.isAxiosError(e1)) {
@@ -1805,13 +1805,8 @@ const fetchPredictions = async () => {
     // Refresh annotations timeline to show the delete entry
     await fetchAnnotations();
     
-    // Don't reload - UI is already updated
-    // window.location.reload();
-    
-    // Reset UI state
-    setDeleteTargetIndex(null);
-    setDeleteMode(false);
-    setIsSubmittingDeleteComment(false);
+    // Refresh the page after successful delete
+    window.location.reload();
   };
 
   // When user finishes drawing a rect on the thermal image
@@ -1951,8 +1946,8 @@ const fetchPredictions = async () => {
       // Refresh annotations timeline to show the new entry
       await fetchAnnotations();
       
-      // Don't reload - predictions are already updated above
-      // window.location.reload();
+      // Refresh the page after successful annotation addition
+      window.location.reload();
     } catch (err) {
       console.error("❌ Saving annotation failed:", err);
       if (axios.isAxiosError(err)) {
@@ -2181,6 +2176,9 @@ const fetchPredictions = async () => {
           res.data?.timestamp ?? res.data?.createdAt ?? new Date().toISOString(),
       };
       setComments((prev) => prev.map((c) => (c.id === tempId ? saved : c)));
+      
+      // Refresh the page after successful comment addition
+      window.location.reload();
     } catch (err) {
       setComments((prev) => prev.filter((c) => c.id !== tempId));
       setCommentTopic(topic);
@@ -2225,6 +2223,9 @@ const fetchPredictions = async () => {
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`,
         { topic: newTopic, comment: newText }
       );
+      
+      // Refresh the page after successful comment edit
+      window.location.reload();
     } catch (err) {
       console.error("❌ Failed to update comment:", err);
       setComments(prevComments);
@@ -2247,6 +2248,9 @@ const fetchPredictions = async () => {
       await axios.delete(
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`
       );
+      
+      // Refresh the page after successful comment deletion
+      window.location.reload();
     } catch (err) {
       console.error("❌ Failed to delete comment:", err);
       setComments(prevComments);
