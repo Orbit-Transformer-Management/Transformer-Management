@@ -71,7 +71,8 @@ interface AnnotationEntry {
   comment: string;
   author: string;
   createdAt: string; // ISO
-  faultName?: string; // Fault name from the bounding box
+  faultName?: string; // Fault name from the bounding box (tag like "Normal 2")
+  className?: string; // Class name (actual model class: "normal", "pf", "f")
 }
 
 const INITIAL_ZOOM = 1;
@@ -225,10 +226,10 @@ const exportFeedbackLogToJSON = (
     } else {
       // Model-generated anomaly: always keep original
       
-      if (editAnnotation) {
-        // EDITED: Keep original model prediction with accepted=false
-        // We need to find the original bounding box before edit
-        // Since we only have current state, we'll mark the model prediction as not accepted
+      if (editAnnotation || isDeleted || deleteAnnotation) {
+        // EDITED or DELETED: Keep original model prediction with accepted=false
+        // Type should remain the same as original, only accepted changes to false
+        const annotatorMeta = editAnnotation || deleteAnnotation;
         feedbackLog.push({
           imageId: inspectionNo,
           inspectionNo: inspectionNo,
@@ -243,50 +244,10 @@ const exportFeedbackLogToJSON = (
             width: pred.width,
             height: pred.height
           },
-          "annotator metadata": null
-        });
-        
-        // Add new entry with edited position
-        feedbackLog.push({
-          imageId: inspectionNo,
-          inspectionNo: inspectionNo,
-          transformerId: transformerId,
-          "predicted by": "annotator",
-          confidence: 1,
-          type: pred.label,
-          accepted: true,
-          boundingBox: {
-            x: pred.x,
-            y: pred.y,
-            width: pred.width,
-            height: pred.height
-          },
-          "annotator metadata": {
-            user: editAnnotation.author,
-            time: editAnnotation.createdAt,
-            comment: editAnnotation.comment
-          }
-        });
-      } else if (isDeleted || deleteAnnotation) {
-        // DELETED: Keep original model prediction with accepted=false
-        feedbackLog.push({
-          imageId: inspectionNo,
-          inspectionNo: inspectionNo,
-          transformerId: transformerId,
-          "predicted by": "Model",
-          confidence: pred.confidence,
-          type: pred.label,
-          accepted: false,
-          boundingBox: {
-            x: pred.x,
-            y: pred.y,
-            width: pred.width,
-            height: pred.height
-          },
-          "annotator metadata": deleteAnnotation ? {
-            user: deleteAnnotation.author,
-            time: deleteAnnotation.createdAt,
-            comment: deleteAnnotation.comment
+          "annotator metadata": annotatorMeta ? {
+            user: annotatorMeta.author,
+            time: annotatorMeta.createdAt,
+            comment: annotatorMeta.comment
           } : null
         });
       } else {
@@ -317,13 +278,21 @@ const exportFeedbackLogToJSON = (
   );
   
   deletedAnnotations.forEach(delAnnotation => {
+    // Try to get className from the annotation, or fall back to "normal" if missing
+    let detectionType = delAnnotation.className || "unknown";
+    
+    // If className is missing and we have backend detect data, try to use it
+    if (detectionType === "unknown" && (delAnnotation as any).detect?.className) {
+      detectionType = (delAnnotation as any).detect.className;
+    }
+    
     feedbackLog.push({
       imageId: inspectionNo,
       inspectionNo: inspectionNo,
       transformerId: transformerId,
       "predicted by": "Model",
       confidence: 0,
-      type: "deleted",
+      type: detectionType,
       accepted: false,
       boundingBox: {
         x: 0,
@@ -399,7 +368,10 @@ const exportFeedbackLogToCSV = (
         annotatorComment: addAnnotation?.comment || ""
       });
     } else {
-      if (editAnnotation) {
+      if (editAnnotation || isDeleted || deleteAnnotation) {
+        // EDITED or DELETED: Keep original model prediction with accepted=false
+        // Type should remain the same as original, only accepted changes to false
+        const annotatorMeta = editAnnotation || deleteAnnotation;
         feedbackLog.push({
           imageId: inspectionNo,
           inspectionNo: inspectionNo,
@@ -412,43 +384,9 @@ const exportFeedbackLogToCSV = (
           boundingBoxY: pred.y,
           boundingBoxWidth: pred.width,
           boundingBoxHeight: pred.height,
-          annotatorUser: "",
-          annotatorTime: "",
-          annotatorComment: ""
-        });
-        
-        feedbackLog.push({
-          imageId: inspectionNo,
-          inspectionNo: inspectionNo,
-          transformerId: transformerId,
-          predictedBy: "annotator",
-          confidence: 1,
-          type: pred.label,
-          accepted: true,
-          boundingBoxX: pred.x,
-          boundingBoxY: pred.y,
-          boundingBoxWidth: pred.width,
-          boundingBoxHeight: pred.height,
-          annotatorUser: editAnnotation.author,
-          annotatorTime: editAnnotation.createdAt,
-          annotatorComment: editAnnotation.comment
-        });
-      } else if (isDeleted || deleteAnnotation) {
-        feedbackLog.push({
-          imageId: inspectionNo,
-          inspectionNo: inspectionNo,
-          transformerId: transformerId,
-          predictedBy: "Model",
-          confidence: pred.confidence,
-          type: pred.label,
-          accepted: false,
-          boundingBoxX: pred.x,
-          boundingBoxY: pred.y,
-          boundingBoxWidth: pred.width,
-          boundingBoxHeight: pred.height,
-          annotatorUser: deleteAnnotation?.author || "",
-          annotatorTime: deleteAnnotation?.createdAt || "",
-          annotatorComment: deleteAnnotation?.comment || ""
+          annotatorUser: annotatorMeta?.author || "",
+          annotatorTime: annotatorMeta?.createdAt || "",
+          annotatorComment: annotatorMeta?.comment || ""
         });
       } else {
         feedbackLog.push({
@@ -1398,8 +1336,12 @@ const fetchPredictions = async () => {
           // Extract fault name from detect object if available
           const detectId = entry.detect?.detectId;
           let faultName: string | undefined;
+          let className: string | undefined;
           
           if (detectId) {
+            // Extract className from backend
+            className = entry.detect?.className;
+            
             // PRIORITY 1: Use detectName from backend if saved
             if (entry.detect?.detectName && entry.detect.detectName.trim()) {
               faultName = entry.detect.detectName.trim();
@@ -1412,7 +1354,6 @@ const fetchPredictions = async () => {
                 console.log(`✅ Using prediction tag "${faultName}" for timeline entry detectId ${detectId}`);
               } else {
                 // PRIORITY 3: If no matching prediction, use className from backend as fallback
-                const className = entry.detect?.className;
                 if (className) {
                   faultName = className === "pf" ? "Potential Fault" : className === "f" ? "Fault" : "Normal";
                   console.log(`✅ Using className fallback "${faultName}" for timeline entry detectId ${detectId}`);
@@ -1423,7 +1364,8 @@ const fetchPredictions = async () => {
           
           return {
             ...entry,
-            faultName
+            faultName,
+            className
           };
         })
       ].sort((a, b) => {
@@ -1767,7 +1709,8 @@ const fetchPredictions = async () => {
         comment: comment,
         author: "Shaveen",
         createdAt: now,
-        faultName: target.tag || "Unknown"
+        faultName: target.tag || "Unknown",
+        className: target.label // Store the actual class: "normal", "pf", "f"
       };
       
       // Add to local timeline entries and sort immediately
