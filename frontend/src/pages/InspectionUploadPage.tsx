@@ -50,6 +50,7 @@ interface Prediction {
   confidence: number;
   label: string; // "f" | "pf" | "normal"
   tag: string; // "Error N" | "Fault N" | "Normal"
+  isEdited?: boolean; // Track if model-generated detection was edited
 }
 interface DrawnRect {
   x: number; // center x in image px
@@ -1104,6 +1105,7 @@ type InspectionModelDetects = {
   className: string | null;
   detectionId?: string | null;
   parentId?: string | null;
+  isEdited?: boolean | null; // Track if model-generated detection was edited
 };
 
 const fetchPredictions = async () => {
@@ -1173,6 +1175,7 @@ const fetchPredictions = async () => {
         confidence: det.confidence,
         label,
         tag,
+        isEdited: det.isEdited ?? false, // Map isEdited from backend
       };
     });
 
@@ -2632,6 +2635,15 @@ const fetchPredictions = async () => {
                             >
                               {isInspectorDetected ? "Inspector Detected" : "Model Generated"}
                             </span>
+                            {/* Edited badge - show when model-generated detection is edited */}
+                            {!isInspectorDetected && pred.isEdited && (
+                              <span
+                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold
+                                bg-orange-100 text-orange-700 ring-1 ring-orange-200"
+                              >
+                                Edited
+                              </span>
+                            )}
                           </div>
 
                           <p className="mt-1 text-2xl text-gray-700">

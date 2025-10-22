@@ -101,6 +101,8 @@ public class DetectsService {
         if (req.getFaultName() != null) {
             existing.setDetectName(req.getFaultName());
         }
+        // Mark as edited when a model-generated detection is modified
+        existing.setIsEdited(true);
 
         //ADD that to the timeline
         InspectionDetectsTimeline timeline = new InspectionDetectsTimeline(existing,req.getAuthor(), req.getComment(),"edit");
@@ -126,7 +128,8 @@ public class DetectsService {
                 d.getClassId(),
                 d.getClassName(),
                 d.getDetectionId(),
-                d.getParentId()
+                d.getParentId(),
+                d.getIsEdited()
             ))
             .collect(Collectors.toList());
     }

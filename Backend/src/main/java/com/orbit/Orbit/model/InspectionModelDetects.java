@@ -23,6 +23,7 @@ public class InspectionModelDetects {
     private String className; // avoid Java reserved word
     private String detectionId;
     private String parentId;
+    private Boolean isEdited = false; // Track if model-generated detection was edited
 
 
     public InspectionModelDetects() {
@@ -138,6 +139,14 @@ public class InspectionModelDetects {
 
     public void setDetectName(String detectName) {
         this.detectName = detectName;
+    }
+
+    public Boolean getIsEdited() {
+        return isEdited;
+    }
+
+    public void setIsEdited(Boolean isEdited) {
+        this.isEdited = isEdited;
     }
 }
 

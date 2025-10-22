@@ -12,13 +12,14 @@ public class DetectionResponse {
     private String className;
     private String detectionId;
     private String parentId;
+    private Boolean isEdited;
 
     public DetectionResponse() {
     }
 
     public DetectionResponse(Long detectId, String inspectionNumber, double width, double height, 
                            double x, double y, double confidence, int classId, String className, 
-                           String detectionId, String parentId) {
+                           String detectionId, String parentId, Boolean isEdited) {
         this.detectId = detectId;
         this.inspectionNumber = inspectionNumber;
         this.width = width;
@@ -30,6 +31,7 @@ public class DetectionResponse {
         this.className = className;
         this.detectionId = detectionId;
         this.parentId = parentId;
+        this.isEdited = isEdited;
     }
 
     // Getters and Setters
@@ -120,4 +122,13 @@ public class DetectionResponse {
     public void setParentId(String parentId) {
         this.parentId = parentId;
     }
+
+    public Boolean getIsEdited() {
+        return isEdited;
+    }
+
+    public void setIsEdited(Boolean isEdited) {
+        this.isEdited = isEdited;
+    }
 }
+

@@ -1,8 +1,6 @@
 package com.orbit.Orbit.model;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
 
@@ -15,8 +13,7 @@ public class InspectionDetectsTimeline {
     private Long anotationId;
 
     @ManyToOne
-    @JoinColumn(name = "detect_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
+    @JoinColumn(name = "detect_id", referencedColumnName = "detectID")
     private InspectionModelDetects detect;
 
     @ManyToOne
