@@ -190,11 +190,11 @@ public class InspectionController {
 
 
     @DeleteMapping("/api/v1/inspections/{inspectionNumber}")
-    public void delete(@PathVariable String inspectionNumber){
+    public ResponseEntity<Void> delete(@PathVariable String inspectionNumber){
         if(!inspectionService.delete(inspectionNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-
+        return ResponseEntity.noContent().build(); // 204 No Content
     }
 
 

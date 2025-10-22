@@ -9,6 +9,7 @@ import com.orbit.Orbit.model.InspectionModelDetects;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionCommentRepo;
 import com.orbit.Orbit.repo.InspectionModelDetectsRepo;
+import com.orbit.Orbit.repo.InspectionDetectsTimelineRepo;
 import com.orbit.Orbit.repo.InspectionRepo;
 import com.orbit.Orbit.repo.TransformerRepo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.orbit.Orbit.dto.RoboflowResponse;
@@ -43,7 +45,8 @@ public class InspectionService {
 
     private final InspectionRepo inspectionRepository;
     private final InspectionCommentRepo inspectionCommentRepository;
-
+    private final InspectionModelDetectsRepo inspectionModelDetectsRepository;
+    private final InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository;
 
     private final TransformerService transformerService;
 
@@ -51,12 +54,14 @@ public class InspectionService {
 
     private final DetectsService detectsService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository, DetectsService detectsService) {
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository, DetectsService detectsService, InspectionModelDetectsRepo inspectionModelDetectsRepository, InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository) {
         this.inspectionRepository = inspectionRepository;
         this.inspectionCommentRepository = inspectionCommentRepository;
         this.transformerService = transformerService;
         this.roboflowService = roboflowService;
         this.detectsService = detectsService;
+        this.inspectionModelDetectsRepository = inspectionModelDetectsRepository;
+        this.inspectionDetectsTimelineRepository = inspectionDetectsTimelineRepository;
     }
 
     public Inspection save(InspectionRequest req){
@@ -151,10 +156,23 @@ public class InspectionService {
 
 
 
-
+    @Transactional
     public boolean delete(String inspectionNumber){
         if (!inspectionRepository.existsById(inspectionNumber)) return false;
+        
+        // Delete related records first to avoid foreign key constraint violations
+        // 1. Delete timeline entries
+        inspectionDetectsTimelineRepository.deleteByInspectionNumber(inspectionNumber);
+        
+        // 2. Delete detections
+        inspectionModelDetectsRepository.deleteByInspectionNumber(inspectionNumber);
+        
+        // 3. Delete comments (should be handled by cascade, but explicit for safety)
+        // Comments are already handled by cascade in Inspection entity
+        
+        // 4. Finally delete the inspection
         inspectionRepository.deleteById(inspectionNumber);
+        
         return true;
     }
 
