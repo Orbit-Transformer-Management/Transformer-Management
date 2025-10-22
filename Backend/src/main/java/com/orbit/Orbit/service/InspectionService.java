@@ -1,12 +1,13 @@
 package com.orbit.Orbit.service;
 
-import com.orbit.Orbit.dto.CommentResponse;
-import com.orbit.Orbit.dto.InspectionRequest;
-import com.orbit.Orbit.dto.InspectionResponse;
+import com.orbit.Orbit.dto.*;
 import com.orbit.Orbit.model.Inspection;
 import com.orbit.Orbit.model.InspectionComment;
+import com.orbit.Orbit.model.InspectionModelDetects;
 import com.orbit.Orbit.model.Transformer;
 import com.orbit.Orbit.repo.InspectionCommentRepo;
+import com.orbit.Orbit.repo.InspectionModelDetectsRepo;
+import com.orbit.Orbit.repo.InspectionDetectsTimelineRepo;
 import com.orbit.Orbit.repo.InspectionRepo;
 import com.orbit.Orbit.repo.TransformerRepo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,9 +16,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.orbit.Orbit.dto.RoboflowResponse;
 import org.springframework.http.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -41,16 +42,23 @@ public class InspectionService {
 
     private final InspectionRepo inspectionRepository;
     private final InspectionCommentRepo inspectionCommentRepository;
+    private final InspectionModelDetectsRepo inspectionModelDetectsRepository;
+    private final InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository;
 
     private final TransformerService transformerService;
 
     private final RoboflowService roboflowService;
 
-    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository) {
+    private final DetectsService detectsService;
+
+    public InspectionService(InspectionRepo inspectionRepository, TransformerService transformerService, RoboflowService roboflowService,InspectionCommentRepo inspectionCommentRepository, DetectsService detectsService, InspectionModelDetectsRepo inspectionModelDetectsRepository, InspectionDetectsTimelineRepo inspectionDetectsTimelineRepository) {
         this.inspectionRepository = inspectionRepository;
+        this.inspectionCommentRepository = inspectionCommentRepository;
         this.transformerService = transformerService;
         this.roboflowService = roboflowService;
-        this.inspectionCommentRepository = inspectionCommentRepository;
+        this.detectsService = detectsService;
+        this.inspectionModelDetectsRepository = inspectionModelDetectsRepository;
+        this.inspectionDetectsTimelineRepository = inspectionDetectsTimelineRepository;
     }
 
     public Inspection save(InspectionRequest req){
@@ -116,52 +124,52 @@ public class InspectionService {
         return new InspectionResponse(updatedInspection);
     }
 
-    public RoboflowResponse getPrediction(String inspectionNumber) {
-        Inspection inspection = inspectionRepository.findById(inspectionNumber)
-                .orElse(null);
-
-        if (inspection == null || inspection.getPredictionJson() == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(
-                    inspection.getPredictionJson(),
-                    RoboflowResponse.class
-            );
-        } catch (Exception e) {
-            throw new RuntimeException("Error parsing prediction JSON", e);
-        }
+    public List<DetectionResponse> getPredictions(String inspectionNumber) {
+        return detectsService.get(inspectionNumber);
     }
 
-    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
-        Inspection inspection = inspectionRepository.findById(inspectionNumber)
-                .orElse(null);
-
-        if (inspection == null) {
-            return null; // or throw new RuntimeException("Inspection not found");
-        }
-
-        try {
-            // Convert DTO -> JSON string
-            String json = objectMapper.writeValueAsString(prediction);
-
-            // Save it in the inspection
-            inspection.setPredictionJson(json);
-            inspectionRepository.save(inspection);
-
-            return prediction; // return the same DTO back
-        } catch (Exception e) {
-            throw new RuntimeException("Error saving prediction JSON", e);
-        }
-    }
-
-
+//    public RoboflowResponse updatePrediction(String inspectionNumber, RoboflowResponse prediction) {
+//        Inspection inspection = inspectionRepository.findById(inspectionNumber)
+//                .orElse(null);
+//
+//        if (inspection == null) {
+//            return null; // or throw new RuntimeException("Inspection not found");
+//        }
+//
+//        try {
+//            // Convert DTO -> JSON string
+//            String json = objectMapper.writeValueAsString(prediction);
+//
+//            // Save it in the inspection
+//            inspection.setPredictionJson(json);
+//            inspectionRepository.save(inspection);
+//
+//            return prediction; // return the same DTO back
+//        } catch (Exception e) {
+//            throw new RuntimeException("Error saving prediction JSON", e);
+//        }
+//    }
 
 
 
+
+    @Transactional
     public boolean delete(String inspectionNumber){
         if (!inspectionRepository.existsById(inspectionNumber)) return false;
+        
+        // Delete related records first to avoid foreign key constraint violations
+        // 1. Delete timeline entries
+        inspectionDetectsTimelineRepository.deleteByInspectionNumber(inspectionNumber);
+        
+        // 2. Delete detections
+        inspectionModelDetectsRepository.deleteByInspectionNumber(inspectionNumber);
+        
+        // 3. Delete comments (should be handled by cascade, but explicit for safety)
+        // Comments are already handled by cascade in Inspection entity
+        
+        // 4. Finally delete the inspection
         inspectionRepository.deleteById(inspectionNumber);
+        
         return true;
     }
 
@@ -199,9 +207,16 @@ public class InspectionService {
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to read image resource", e);
             }
-            RoboflowResponse prediction = roboflowService.analyzeInspectionImage(base64Image);
-            inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
+            RoboflowResponse predictions = roboflowService.analyzeInspectionImage(base64Image);
             this.inspectionRepository.save(inspection);
+            //If any detects present
+            detectsService.deleteByInspectionNumber(inspectionNumber);
+
+            detectsService.save(predictions,inspection);
+            //inspection.setPredictionJson(objectMapper.writeValueAsString(prediction));
+            //Saving all the predictions
+
+
 
         return final_url;
 

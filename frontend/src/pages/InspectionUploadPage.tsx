@@ -20,8 +20,13 @@ import {
   Trash2,
   Loader2,
   Save,
+  Download,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import axios from "axios";
+import { Rnd } from "react-rnd";
+// Local modal for comments (inlined to avoid path resolution issues)
 
 // === Types ===
 interface ImageDetails {
@@ -37,6 +42,7 @@ interface UploadProgress {
   type: "thermal" | "baseline";
 }
 interface Prediction {
+  detectId?: number; // Backend ID for edit/delete
   x: number;
   y: number;
   width: number;
@@ -45,12 +51,28 @@ interface Prediction {
   label: string; // "f" | "pf" | "normal"
   tag: string; // "Error N" | "Fault N" | "Normal"
 }
+interface DrawnRect {
+  x: number; // center x in image px
+  y: number; // center y in image px
+  width: number;
+  height: number;
+}
 interface InspectorComment {
   id?: string;
   topic: string;
   text: string;
   author?: string;
   timestamp: string; // ISO
+}
+
+interface AnnotationEntry {
+  anotationId: number; // Backend ID from InspectionDetectsTimeline
+  type: string; // "add" | "edit" | "delete"
+  comment: string;
+  author: string;
+  createdAt: string; // ISO
+  faultName?: string; // Fault name from the bounding box (tag like "Normal 2")
+  className?: string; // Class name (actual model class: "normal", "pf", "f")
 }
 
 const INITIAL_ZOOM = 1;
@@ -66,6 +88,398 @@ const formatDateTime = (iso: string) =>
     minute: "2-digit",
   });
 
+// Export annotations to CSV
+const exportAnnotationsToCSV = (annotations: AnnotationEntry[], inspectionNo: string, transformerId: string) => {
+  if (annotations.length === 0) {
+    alert("No annotations to export!");
+    return;
+  }
+
+  // Define CSV headers
+  const headers = ["Image ID", "Transformer ID", "Action Taken", "Fault Name", "Comment", "User", "Timestamp"];
+  
+  // Convert annotations to CSV rows
+  const rows = annotations.map((a) => {
+    return [
+      inspectionNo,
+      transformerId,
+      a.type.charAt(0).toUpperCase() + a.type.slice(1),
+      a.faultName || "—",
+      a.comment || "—",
+      a.author,
+      formatDateTime(a.createdAt)
+    ].map(field => {
+      // Escape quotes and wrap in quotes if contains comma, quote, or newline
+      const escaped = String(field).replace(/"/g, '""');
+      return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') 
+        ? `"${escaped}"` 
+        : escaped;
+    });
+  });
+
+  // Combine headers and rows
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  // Create blob and download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `inspection_${inspectionNo}_annotations_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Export annotations to JSON
+const exportAnnotationsToJSON = (annotations: AnnotationEntry[], inspectionNo: string, transformerId: string) => {
+  if (annotations.length === 0) {
+    alert("No annotations to export!");
+    return;
+  }
+
+  // Convert annotations to JSON format (same structure as CSV)
+  const jsonData = annotations.map((a) => ({
+    "Image ID": inspectionNo,
+    "Transformer ID": transformerId,
+    "Action Taken": a.type.charAt(0).toUpperCase() + a.type.slice(1),
+    "Fault Name": a.faultName || "—",
+    "Comment": a.comment || "—",
+    "User": a.author,
+    "Timestamp": formatDateTime(a.createdAt)
+  }));
+
+  // Create blob and download
+  const jsonString = JSON.stringify(jsonData, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `inspection_${inspectionNo}_annotations_${new Date().toISOString().split('T')[0]}.json`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Export Feedback Log to JSON - FR3.3: Feedback Integration for Model Improvement
+const exportFeedbackLogToJSON = (
+  predictions: Prediction[], 
+  annotations: AnnotationEntry[], 
+  inspectionNo: string,
+  addedDetectIds: Set<number>,
+  deletedDetectIds: Set<number>,
+  transformerId: string
+) => {
+  if (predictions.length === 0 && annotations.length === 0) {
+    alert("No detection data to export!");
+    return;
+  }
+
+  const feedbackLog: any[] = [];
+
+  // Process current predictions
+  predictions.forEach((pred) => {
+    const isUserAdded = pred.detectId ? addedDetectIds.has(pred.detectId) : false;
+    const isDeleted = pred.detectId ? deletedDetectIds.has(pred.detectId) : false;
+    
+    // Find annotation history for this detection
+    const relatedAnnotations = annotations.filter(a => a.anotationId === pred.detectId);
+    const editAnnotation = relatedAnnotations.find(a => a.type === "edit");
+    const deleteAnnotation = relatedAnnotations.find(a => a.type === "delete");
+    const addAnnotation = relatedAnnotations.find(a => a.type === "add");
+    
+    if (isUserAdded) {
+      // User-added anomaly: only one entry
+      feedbackLog.push({
+        imageId: inspectionNo,
+        inspectionNo: inspectionNo,
+        transformerId: transformerId,
+        "predicted by": "annotator",
+        confidence: 1,
+        type: pred.label,
+        accepted: true,
+        boundingBox: {
+          x: pred.x,
+          y: pred.y,
+          width: pred.width,
+          height: pred.height
+        },
+        "annotator metadata": addAnnotation ? {
+          user: addAnnotation.author,
+          time: addAnnotation.createdAt,
+          comment: addAnnotation.comment
+        } : null
+      });
+    } else {
+      // Model-generated anomaly: always keep original
+      
+      if (editAnnotation || isDeleted || deleteAnnotation) {
+        // EDITED or DELETED: Keep original model prediction with accepted=false
+        // Type should remain the same as original, only accepted changes to false
+        const annotatorMeta = editAnnotation || deleteAnnotation;
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          "predicted by": "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: false,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": annotatorMeta ? {
+            user: annotatorMeta.author,
+            time: annotatorMeta.createdAt,
+            comment: annotatorMeta.comment
+          } : null
+        });
+      } else {
+        // UNCHANGED: Keep original model prediction with accepted=true
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          "predicted by": "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: true,
+          boundingBox: {
+            x: pred.x,
+            y: pred.y,
+            width: pred.width,
+            height: pred.height
+          },
+          "annotator metadata": null
+        });
+      }
+    }
+  });
+
+  // Add deleted model predictions that are no longer in the predictions array
+  const deletedAnnotations = annotations.filter(a => 
+    a.type === "delete" && !predictions.find(p => p.detectId === a.anotationId)
+  );
+  
+  deletedAnnotations.forEach(delAnnotation => {
+    // Try to get className from the annotation, or fall back to "normal" if missing
+    let detectionType = delAnnotation.className || "unknown";
+    
+    // If className is missing and we have backend detect data, try to use it
+    if (detectionType === "unknown" && (delAnnotation as any).detect?.className) {
+      detectionType = (delAnnotation as any).detect.className;
+    }
+    
+    feedbackLog.push({
+      imageId: inspectionNo,
+      inspectionNo: inspectionNo,
+      transformerId: transformerId,
+      "predicted by": "Model",
+      confidence: 0,
+      type: detectionType,
+      accepted: false,
+      boundingBox: {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0
+      },
+      "annotator metadata": {
+        user: delAnnotation.author,
+        time: delAnnotation.createdAt,
+        comment: delAnnotation.comment
+      }
+    });
+  });
+
+  // Create blob and download
+  const blob = new Blob([JSON.stringify(feedbackLog, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `feedback_log_${inspectionNo}_${new Date().toISOString().split('T')[0]}.json`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Export Feedback Log to CSV - FR3.3: Feedback Integration for Model Improvement
+const exportFeedbackLogToCSV = (
+  predictions: Prediction[], 
+  annotations: AnnotationEntry[], 
+  inspectionNo: string,
+  addedDetectIds: Set<number>,
+  deletedDetectIds: Set<number>,
+  transformerId: string
+) => {
+  if (predictions.length === 0 && annotations.length === 0) {
+    alert("No detection data to export!");
+    return;
+  }
+
+  const feedbackLog: any[] = [];
+
+  // Process current predictions (same logic as JSON export)
+  predictions.forEach((pred) => {
+    const isUserAdded = pred.detectId ? addedDetectIds.has(pred.detectId) : false;
+    const isDeleted = pred.detectId ? deletedDetectIds.has(pred.detectId) : false;
+    
+    const relatedAnnotations = annotations.filter(a => a.anotationId === pred.detectId);
+    const editAnnotation = relatedAnnotations.find(a => a.type === "edit");
+    const deleteAnnotation = relatedAnnotations.find(a => a.type === "delete");
+    const addAnnotation = relatedAnnotations.find(a => a.type === "add");
+    
+    if (isUserAdded) {
+      feedbackLog.push({
+        imageId: inspectionNo,
+        inspectionNo: inspectionNo,
+        transformerId: transformerId,
+        predictedBy: "annotator",
+        confidence: 1,
+        type: pred.label,
+        accepted: true,
+        boundingBoxX: pred.x,
+        boundingBoxY: pred.y,
+        boundingBoxWidth: pred.width,
+        boundingBoxHeight: pred.height,
+        annotatorUser: addAnnotation?.author || "",
+        annotatorTime: addAnnotation?.createdAt || "",
+        annotatorComment: addAnnotation?.comment || ""
+      });
+    } else {
+      if (editAnnotation || isDeleted || deleteAnnotation) {
+        // EDITED or DELETED: Keep original model prediction with accepted=false
+        // Type should remain the same as original, only accepted changes to false
+        const annotatorMeta = editAnnotation || deleteAnnotation;
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          predictedBy: "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: false,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: annotatorMeta?.author || "",
+          annotatorTime: annotatorMeta?.createdAt || "",
+          annotatorComment: annotatorMeta?.comment || ""
+        });
+      } else {
+        feedbackLog.push({
+          imageId: inspectionNo,
+          inspectionNo: inspectionNo,
+          transformerId: transformerId,
+          predictedBy: "Model",
+          confidence: pred.confidence,
+          type: pred.label,
+          accepted: true,
+          boundingBoxX: pred.x,
+          boundingBoxY: pred.y,
+          boundingBoxWidth: pred.width,
+          boundingBoxHeight: pred.height,
+          annotatorUser: "",
+          annotatorTime: "",
+          annotatorComment: ""
+        });
+      }
+    }
+  });
+
+  // CSV headers
+  const headers = [
+    "Image ID",
+    "Inspection No",
+    "Transformer ID",
+    "Predicted By",
+    "Confidence",
+    "Type",
+    "Accepted",
+    "Bounding Box X",
+    "Bounding Box Y",
+    "Bounding Box Width",
+    "Bounding Box Height",
+    "Annotator User",
+    "Annotator Time",
+    "Annotator Comment"
+  ];
+
+  // Convert to CSV rows
+  const rows = feedbackLog.map((entry) => {
+    return [
+      entry.imageId,
+      entry.inspectionNo,
+      entry.transformerId,
+      entry.predictedBy,
+      entry.confidence,
+      entry.type,
+      entry.accepted,
+      entry.boundingBoxX,
+      entry.boundingBoxY,
+      entry.boundingBoxWidth,
+      entry.boundingBoxHeight,
+      entry.annotatorUser,
+      entry.annotatorTime,
+      entry.annotatorComment
+    ].map(field => {
+      const escaped = String(field).replace(/"/g, '""');
+      return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') 
+        ? `"${escaped}"` 
+        : escaped;
+    });
+  });
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `feedback_log_${inspectionNo}_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
+
+// Utility to clear localStorage for an inspection (useful when backend is fixed)
+const clearInspectionLocalStorage = (inspectionNo: string) => {
+  localStorage.removeItem(`addedDetectIds_${inspectionNo}`);
+  localStorage.removeItem(`deletedDetectIds_${inspectionNo}`);
+  localStorage.removeItem(`localTimeline_${inspectionNo}`);
+  console.log("🗑️ Cleared localStorage for inspection:", inspectionNo);
+};
+
 /* ------------------------ ImageDisplayCard (memoized) ----------------------- */
 
 type ImgType = "thermal" | "baseline";
@@ -77,6 +491,16 @@ interface ImageDisplayCardProps {
   onDeleteBaseline?: () => void;
   onDeleteThermal?: () => void;
   onReuploadBaseline?: () => void; // NEW
+  // Drawing support (thermal only)
+  enableBBoxDrawing?: boolean;
+  onBBoxDrawn?: (rect: DrawnRect) => void;
+  // Delete/select support (thermal only)
+  deleteMode?: boolean;
+  onOverlayClick?: (predictionIndex: number) => void;
+  // Edit support (thermal only)
+  editMode?: boolean;
+  editSelectedIndex?: number | null;
+  onEditDraftChange?: (draft: { left: number; top: number; width: number; height: number }) => void;
 }
 
 const ImageDisplayCard = React.memo(function ImageDisplayCard({
@@ -85,9 +509,17 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   predictions = [],
   onReuploadThermal,
   onReuploadBaseline, // NEW
+  enableBBoxDrawing = false,
+  onBBoxDrawn,
+  deleteMode = false,
+  onOverlayClick,
+  editMode = false,
+  editSelectedIndex = null,
+  onEditDraftChange,
 }: ImageDisplayCardProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const drawOverlayRef = useRef<HTMLDivElement>(null);
 
   const naturalW = useRef(0);
   const naturalH = useRef(0);
@@ -163,6 +595,8 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   }, []);
 
   const onMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    // Disable pan when drawing, delete mode, or edit mode is enabled
+    if (type === "thermal" && (enableBBoxDrawing || deleteMode || editMode)) return;
     dragging.current = true;
     dragStart.current = { x: e.clientX, y: e.clientY };
     translateStart.current = { ...translate };
@@ -181,6 +615,87 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   const zoomIn = () => setZoom((z) => Math.min(5, z + 0.2));
   const zoomOut = () => setZoom((z) => Math.max(0.2, z - 0.2));
   const resetView = () => centerAtFit();
+
+  // -------- Drawing state (thermal only) --------
+  const [isDrawing, setIsDrawing] = useState(false);
+  const drawStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [draftRect, setDraftRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const toImageCoords = (clientX: number, clientY: number) => {
+    const overlay = drawOverlayRef.current;
+    if (!overlay || !zoomRef.current) return { x: 0, y: 0 };
+    const r = overlay.getBoundingClientRect();
+    const x = (clientX - r.left) / zoomRef.current;
+    const y = (clientY - r.top) / zoomRef.current;
+    return { x: Math.max(0, Math.min(naturalW.current, x)), y: Math.max(0, Math.min(naturalH.current, y)) };
+  };
+
+  const onDrawMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!enableBBoxDrawing || type !== "thermal") return;
+    e.stopPropagation();
+    e.preventDefault();
+    const { x, y } = toImageCoords(e.clientX, e.clientY);
+    drawStart.current = { x, y };
+    setDraftRect({ left: x, top: y, width: 0, height: 0 });
+    setIsDrawing(true);
+  };
+
+  const onDrawMouseMove: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!isDrawing || !enableBBoxDrawing || type !== "thermal") return;
+    e.stopPropagation();
+    e.preventDefault();
+    const { x, y } = toImageCoords(e.clientX, e.clientY);
+    const sx = drawStart.current.x;
+    const sy = drawStart.current.y;
+    const left = Math.max(0, Math.min(sx, x));
+    const top = Math.max(0, Math.min(sy, y));
+    const right = Math.min(naturalW.current, Math.max(sx, x));
+    const bottom = Math.min(naturalH.current, Math.max(sy, y));
+    setDraftRect({ left, top, width: right - left, height: bottom - top });
+  };
+
+  const onDrawMouseUp: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    if (!isDrawing || !enableBBoxDrawing || type !== "thermal") return;
+    e.stopPropagation();
+    e.preventDefault();
+    setIsDrawing(false);
+    if (draftRect && draftRect.width > 4 && draftRect.height > 4) {
+      const rect: DrawnRect = {
+        x: draftRect.left + draftRect.width / 2,
+        y: draftRect.top + draftRect.height / 2,
+        width: draftRect.width,
+        height: draftRect.height,
+      };
+      onBBoxDrawn && onBBoxDrawn(rect);
+    }
+    setDraftRect(null);
+  };
+
+  // -------- Edit overlay state (thermal only) --------
+  const [editCssBox, setEditCssBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (type !== "thermal") return;
+    if (!editMode || editSelectedIndex == null) {
+      setEditCssBox(null);
+      return;
+    }
+    const pred = predictions[editSelectedIndex];
+    if (!pred) return;
+    const left = pred.x - pred.width / 2;
+    const top = pred.y - pred.height / 2;
+    setEditCssBox({ left, top, width: pred.width, height: pred.height });
+  }, [editMode, editSelectedIndex, predictions, type]);
 
   return (
     <div className="bg-white p-4 rounded-xl shadow-lg relative">
@@ -291,17 +806,69 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
                     ? "orange"
                     : "limegreen";
 
+                const selectable = deleteMode || (editMode && editSelectedIndex == null);
+                const isEditingThis = editMode && editSelectedIndex === idx && editCssBox;
+
+                if (isEditingThis && editCssBox) {
+                  return (
+                    <Rnd
+                      key={pred.detectId ?? idx}
+                      bounds="parent"
+                      size={{ width: editCssBox.width, height: editCssBox.height }}
+                      position={{ x: editCssBox.left, y: editCssBox.top }}
+                      scale={zoom}
+                      onDrag={(_, d) => setEditCssBox((b) => (b ? { ...b, left: d.x, top: d.y } : b))}
+                      onResize={(_, __, ref, ___, position) =>
+                        setEditCssBox({
+                          left: position.x,
+                          top: position.y,
+                          width: parseFloat(ref.style.width),
+                          height: parseFloat(ref.style.height),
+                        })
+                      }
+                      onDragStop={(_, d) => {
+                        const draft = {
+                          left: d.x,
+                          top: d.y,
+                          width: editCssBox.width,
+                          height: editCssBox.height,
+                        };
+                        onEditDraftChange && onEditDraftChange(draft);
+                      }}
+                      onResizeStop={(_, __, ref, ___, position) => {
+                        const draft = {
+                          left: position.x,
+                          top: position.y,
+                          width: parseFloat(ref.style.width),
+                          height: parseFloat(ref.style.height),
+                        };
+                        onEditDraftChange && onEditDraftChange(draft);
+                      }}
+                      style={{
+                        border: `2px solid ${color}`,
+                        boxShadow: "0 0 0 2px rgba(37,99,235,0.35) inset",
+                      }}
+                    >
+                      <span className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white/80 text-black">
+                        {pred.tag}
+                      </span>
+                    </Rnd>
+                  );
+                }
+
                 return (
                   <div
-                    key={idx}
-                    className="absolute text-xs pointer-events-none"
+                    key={pred.detectId ?? idx}
+                    className={`absolute text-xs ${selectable ? "cursor-pointer" : "pointer-events-none"}`}
                     style={{
                       left,
                       top,
                       width,
                       height,
                       border: `2px solid ${color}`,
+                      boxShadow: deleteMode ? "0 0 0 2px rgba(239,68,68,0.35) inset" : undefined,
                     }}
+                    onClick={selectable ? () => onOverlayClick?.(idx) : undefined}
                   >
                     <span className="absolute bottom-0 left-0 px-1 text-[10px] font-bold bg-white/80 text-black">
                       {pred.tag}
@@ -309,6 +876,30 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
                   </div>
                 );
               })}
+
+            {/* Drawing overlay (thermal only) */}
+            {type === "thermal" && enableBBoxDrawing && (
+              <div
+                ref={drawOverlayRef}
+                className="absolute inset-0 cursor-crosshair"
+                style={{ width: naturalW.current || 0, height: naturalH.current || 0 }}
+                onMouseDown={onDrawMouseDown}
+                onMouseMove={onDrawMouseMove}
+                onMouseUp={onDrawMouseUp}
+              >
+                {draftRect && (
+                  <div
+                    className="absolute border-2 border-blue-500/90 bg-blue-200/10"
+                    style={{
+                      left: draftRect.left,
+                      top: draftRect.top,
+                      width: draftRect.width,
+                      height: draftRect.height,
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -326,7 +917,9 @@ const ImageDisplayCard = React.memo(function ImageDisplayCard({
   prev.onDeleteBaseline === next.onDeleteBaseline &&
   prev.onDeleteThermal === next.onDeleteThermal &&
   prev.onReuploadBaseline === next.onReuploadBaseline && // NEW
-  prev.predictions === next.predictions
+  prev.predictions === next.predictions &&
+  prev.enableBBoxDrawing === next.enableBBoxDrawing &&
+  prev.deleteMode === next.deleteMode
 );
 
 /* --------------------------------- Page ------------------------------------ */
@@ -355,7 +948,131 @@ const InspectionUploadPage = () => {
   });
 
   const [thermalPredictions, setThermalPredictions] = useState<Prediction[]>([]);
+  const thermalPredictionsRef = useRef<Prediction[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  // Delete mode state
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [deleteTargetIndex, setDeleteTargetIndex] = useState<number | null>(null);
+  const [isSubmittingDeleteComment, setIsSubmittingDeleteComment] = useState(false);
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false);
+  const [editSelectedIndex, setEditSelectedIndex] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [isSubmittingEditComment, setIsSubmittingEditComment] = useState(false);
+  const [editCommentOpen, setEditCommentOpen] = useState(false);
+  // Session annotations log (Add/Edit/Delete)
+  const [annotationsMade, setAnnotationsMade] = useState<AnnotationEntry[]>([]);
+  
+  // Collapsible state for annotations table
+  const [isAnnotationsExpanded, setIsAnnotationsExpanded] = useState(false);
+  
+  // Collapsible state for comments section
+  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
+
+  // Export dropdown state
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
+  
+  // Feedback Log export dropdown state
+  const [isFeedbackExportDropdownOpen, setIsFeedbackExportDropdownOpen] = useState(false);
+
+  // Track which detectIds were added in this session (workaround for backend bug)
+  const [addedDetectIds, setAddedDetectIds] = useState<Set<number>>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`addedDetectIds_${inspectionNo}`);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
+  
+  const [deletedDetectIds, setDeletedDetectIds] = useState<Set<number>>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`deletedDetectIds_${inspectionNo}`);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
+  
+  // Local timeline entries that backend doesn't save (Add and Delete operations)
+  const [localTimelineEntries, setLocalTimelineEntries] = useState<AnnotationEntry[]>(() => {
+    // Load from localStorage on mount
+    const stored = localStorage.getItem(`localTimeline_${inspectionNo}`);
+    return stored ? JSON.parse(stored) : [];
+  });
+  
+  // Use ref to track latest localTimelineEntries for fetchAnnotations
+  const localTimelineEntriesRef = useRef(localTimelineEntries);
+  useEffect(() => {
+    localTimelineEntriesRef.current = localTimelineEntries;
+  }, [localTimelineEntries]);
+
+  // Use ref to track latest thermalPredictions for fetchAnnotations
+  useEffect(() => {
+    thermalPredictionsRef.current = thermalPredictions;
+  }, [thermalPredictions]);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isExportDropdownOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setIsExportDropdownOpen(false);
+        }
+      }
+      if (isFeedbackExportDropdownOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setIsFeedbackExportDropdownOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isExportDropdownOpen, isFeedbackExportDropdownOpen]);
+
+  // Persist to localStorage whenever these change
+  useEffect(() => {
+    if (inspectionNo) {
+      localStorage.setItem(`addedDetectIds_${inspectionNo}`, JSON.stringify([...addedDetectIds]));
+      console.log("💾 Saved addedDetectIds to localStorage:", [...addedDetectIds]);
+    }
+  }, [addedDetectIds, inspectionNo]);
+
+  useEffect(() => {
+    if (inspectionNo) {
+      localStorage.setItem(`deletedDetectIds_${inspectionNo}`, JSON.stringify([...deletedDetectIds]));
+      console.log("💾 Saved deletedDetectIds to localStorage:", [...deletedDetectIds]);
+    }
+  }, [deletedDetectIds, inspectionNo]);
+
+  useEffect(() => {
+    if (inspectionNo) {
+      localStorage.setItem(`localTimeline_${inspectionNo}`, JSON.stringify(localTimelineEntries));
+      console.log("💾 Saved localTimeline to localStorage:", localTimelineEntries.length, "entries");
+    }
+  }, [localTimelineEntries, inspectionNo]);
+
+  // Load from localStorage on component mount
+  useEffect(() => {
+    if (inspectionNo) {
+      const storedAdded = localStorage.getItem(`addedDetectIds_${inspectionNo}`);
+      const storedDeleted = localStorage.getItem(`deletedDetectIds_${inspectionNo}`);
+      const storedTimeline = localStorage.getItem(`localTimeline_${inspectionNo}`);
+      
+      console.log("📂 Loaded from localStorage:");
+      console.log("  - addedDetectIds:", storedAdded ? JSON.parse(storedAdded).length : 0);
+      console.log("  - deletedDetectIds:", storedDeleted ? JSON.parse(storedDeleted).length : 0);
+      console.log("  - localTimeline:", storedTimeline ? JSON.parse(storedTimeline).length : 0, "entries");
+    }
+  }, [inspectionNo]);
+
+  // User annotation/draw state (Step 1 - Add)
+  const [isAddMode, setIsAddMode] = useState(false);
+  const [pendingRect, setPendingRect] = useState<DrawnRect | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [annoFaultName, setAnnoFaultName] = useState("");
+  const [annoConditionType, setAnnoConditionType] = useState<"Faulty" | "Normal" | "Potential Faulty">("Faulty");
+  const [annoConfidence, setAnnoConfidence] = useState<string>("");
+  const [annoComment, setAnnoComment] = useState<string>("");
+  const [savingAnnotation, setSavingAnnotation] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<InspectorComment[]>([]);
@@ -374,52 +1091,99 @@ const InspectionUploadPage = () => {
   const [isDeletingBaseline, setIsDeletingBaseline] = useState(false);
   const [isDeletingThermal, setIsDeletingThermal] = useState(false);
 
-  // === Predictions ===
-  const fetchPredictions = async () => {
-    if (!inspectionNo) return;
-    try {
-      setIsAnalyzing(true);
-      const res = await axios.get(
-        `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`
-      );
+   // === Predictions ===
+type InspectionModelDetects = {
+  detectId: number;
+  detectName?: string | null; // Fault name from backend
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  confidence: number;
+  classId: number;
+  className: string | null;
+  detectionId?: string | null;
+  parentId?: string | null;
+};
 
-      const detections: Prediction[] = [];
-      let errorCount = 0;
-      let faultCount = 0;
+const fetchPredictions = async () => {
+  if (!inspectionNo) return;
+  try {
+    setIsAnalyzing(true);
 
-      (res.data.outputs || []).forEach((output: any) => {
-        if (output.predictions?.predictions) {
-          output.predictions.predictions.forEach((det: any) => {
-            let tag = "Normal";
-            if (det.class === "f") {
-              errorCount++;
-              tag = `Error ${errorCount}`;
-            } else if (det.class === "pf") {
-              faultCount++;
-              tag = `Fault ${faultCount}`;
-            }
+    const { data } = await axios.get<InspectionModelDetects[]>(
+      `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`
+    );
 
-            detections.push({
-              x: det.x,
-              y: det.y,
-              width: det.width,
-              height: det.height,
-              confidence: det.confidence,
-              label: det.class,
-              tag,
-            });
-          });
+    // Filter out deleted detections first (backend bug workaround)
+    const filteredData = (data || []).filter((det) => {
+      if (deletedDetectIds.has(det.detectId)) {
+        console.log(`🗑️ Filtering out deleted detectId ${det.detectId} from predictions`);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`📊 Loaded ${data?.length || 0} predictions from backend, ${filteredData.length} after filtering deleted`);
+
+    // Count existing detections by type for proper numbering
+    let faultCount = 0;
+    let potentialFaultCount = 0;
+    let normalCount = 0;
+
+    const detections: Prediction[] = filteredData.map((det) => {
+      const label = (det.className ?? "").trim();
+      
+      // Use detectName from backend if available, otherwise check existing prediction, otherwise auto-generate
+      let tag: string;
+      
+      if (det.detectName && det.detectName.trim()) {
+        // Backend has a fault name saved - use it
+        tag = det.detectName.trim();
+        console.log(`✅ Using backend fault name "${tag}" for detectId ${det.detectId}`);
+      } else {
+        // Check if this detection already exists in current predictions with a custom name
+        const existing = thermalPredictions.find(p => p.detectId === det.detectId);
+        
+        if (existing && existing.tag) {
+          // Preserve the existing custom name (user-entered or previously set)
+          tag = existing.tag;
+          console.log(`✅ Preserving custom name "${tag}" for detectId ${det.detectId}`);
+        } else {
+          // New detection from backend without detectName - use auto-generated name
+          if (label.toLowerCase() === "pf") {
+            faultCount += 1;
+            tag = `Fault ${faultCount}`;
+          } else if (label.toLowerCase() === "f") {
+            potentialFaultCount += 1;
+            tag = `Potentially Fault ${potentialFaultCount}`;
+          } else {
+            normalCount += 1;
+            tag = `Normal ${normalCount}`;
+          }
         }
-      });
+      }
 
-      setThermalPredictions(detections);
-    } catch (err) {
-      console.error("❌ Analysis failed:", err);
-      setThermalPredictions([]);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+      return {
+        detectId: det.detectId,
+        x: det.x,
+        y: det.y,
+        width: det.width,
+        height: det.height,
+        confidence: det.confidence,
+        label,
+        tag,
+      };
+    });
+
+    setThermalPredictions(detections);
+  } catch (err) {
+    console.error("❌ Analysis failed:", err);
+    setThermalPredictions([]);
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
 
   // === Comments ===
   const fetchComments = useCallback(async () => {
@@ -464,6 +1228,175 @@ const InspectionUploadPage = () => {
       }
     }
   }, [inspectionNo]);
+
+  // === Fetch Annotations Timeline ===
+  const fetchAnnotations = useCallback(async () => {
+    if (!inspectionNo) return;
+    try {
+      console.log("📥 Fetching annotations timeline for inspection:", inspectionNo);
+      const res = await axios.get(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze/timeline`
+      );
+      const backendList = Array.isArray(res.data) ? res.data : [];
+      console.log("✅ Backend timeline received:", backendList.length, "entries");
+      
+      // Filter backend entries for deleted detections
+      // Keep historical entries (Add/Edit from before deletion)
+      // Filter out ONLY the most recent "edit" entry if it matches the delete comment (backend bug)
+      const filteredBackendList = backendList.filter((entry: any) => {
+        const detectId = entry.detect?.detectId;
+        
+        if (detectId && deletedDetectIds.has(detectId)) {
+          // This detection was deleted
+          // Backend bug: it creates an "edit" entry when deleting
+          // Keep historical entries (Add/Edit from before deletion)
+          // Filter out only the fake "edit" entry that was created during delete
+          
+          if (entry.type === "edit") {
+            // Check if this is the fake edit created during delete
+            // Find the local delete entry for this detectId
+            const localDeleteEntry = localTimelineEntriesRef.current.find(
+              (local) => local.type === "delete" && local.anotationId === Date.now()
+            );
+            
+            // If this edit entry has the same comment as our delete entry and similar timestamp,
+            // it's likely the fake entry created by the backend bug
+            const hasMatchingDeleteEntry = localTimelineEntriesRef.current.some(
+              (local) => {
+                if (local.type !== "delete") return false;
+                
+                const backendComment = (entry.comment || "").trim();
+                const localComment = (local.comment || "").trim();
+                
+                // Match by comment
+                if (backendComment === localComment) {
+                  // Also check timestamps are close (within 10 seconds)
+                  const backendTime = new Date(entry.createdAt).getTime();
+                  const localTime = new Date(local.createdAt).getTime();
+                  const timeDiff = Math.abs(backendTime - localTime);
+                  
+                  if (timeDiff < 10000) {
+                    console.log(`🗑️ Filtering out fake "edit" entry for deleted detectId ${detectId} (matched by comment & time)`);
+                    return true;
+                  }
+                }
+                
+                return false;
+              }
+            );
+            
+            if (hasMatchingDeleteEntry) {
+              return false; // Filter out this fake edit
+            }
+          }
+          
+          // Keep all other entries (historical Add/Edit entries from before deletion)
+          console.log(`✅ Keeping historical "${entry.type}" entry for deleted detectId ${detectId}`);
+        }
+        
+        return true;
+      });
+      
+      console.log("✅ Backend timeline after filtering:", filteredBackendList.length, "entries");
+      
+      // Group backend entries by detectId and type to understand what we have
+      const backendEntriesByDetectId = new Map<number, Set<string>>();
+      filteredBackendList.forEach((entry: any) => {
+        const detectId = entry.detect?.detectId;
+        if (detectId) {
+          if (!backendEntriesByDetectId.has(detectId)) {
+            backendEntriesByDetectId.set(detectId, new Set());
+          }
+          backendEntriesByDetectId.get(detectId)!.add(entry.type || "");
+        }
+      });
+      
+      // Keep local "Add" entries ONLY if backend doesn't have an "add" type for that detectId
+      // This allows both Add and Edit entries to coexist for the same detectId
+      const relevantLocalEntries = localTimelineEntriesRef.current.filter((local) => {
+        const detectId = local.anotationId;
+        const backendTypes = backendEntriesByDetectId.get(detectId);
+        
+        if (local.type === "add" && backendTypes?.has("add")) {
+          // Backend has saved the Add entry, remove local duplicate
+          console.log(`⚠️ Backend has "add" entry for detectId ${detectId}, removing local duplicate`);
+          return false;
+        }
+        
+        // Keep all other local entries (Add without backend, Delete, etc.)
+        return true;
+      });
+      
+      console.log("✅ Local timeline entries:", relevantLocalEntries.length);
+      
+      // Merge backend and local entries, sort by timestamp (newest first)
+      const mergedList = [
+        ...relevantLocalEntries,
+        ...filteredBackendList.map((entry: any) => {
+          // Extract fault name from detect object if available
+          const detectId = entry.detect?.detectId;
+          let faultName: string | undefined;
+          let className: string | undefined;
+          
+          if (detectId) {
+            // Extract className from backend
+            className = entry.detect?.className;
+            
+            // PRIORITY 1: Use detectName from backend if saved
+            if (entry.detect?.detectName && entry.detect.detectName.trim()) {
+              faultName = entry.detect.detectName.trim();
+              console.log(`✅ Using backend detectName "${faultName}" for timeline entry detectId ${detectId}`);
+            } else {
+              // PRIORITY 2: Try to find matching prediction to get the fault name
+              const matchingPrediction = thermalPredictionsRef.current.find(p => p.detectId === detectId);
+              if (matchingPrediction) {
+                faultName = matchingPrediction.tag;
+                console.log(`✅ Using prediction tag "${faultName}" for timeline entry detectId ${detectId}`);
+              } else {
+                // PRIORITY 3: If no matching prediction, use className from backend as fallback
+                if (className) {
+                  faultName = className === "pf" ? "Potential Fault" : className === "f" ? "Fault" : "Normal";
+                  console.log(`✅ Using className fallback "${faultName}" for timeline entry detectId ${detectId}`);
+                }
+              }
+            }
+          }
+          
+          return {
+            ...entry,
+            faultName,
+            className
+          };
+        })
+      ].sort((a, b) => {
+        // Ensure we have valid timestamps
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        
+        // Sort descending (newest first)
+        const result = dateB - dateA;
+        
+        if (result !== 0) {
+          return result;
+        }
+        
+        // If timestamps are equal, sort by type priority: Delete > Edit > Add
+        const typePriority: { [key: string]: number } = { delete: 3, edit: 2, add: 1 };
+        const priorityA = typePriority[a.type] || 0;
+        const priorityB = typePriority[b.type] || 0;
+        return priorityB - priorityA;
+      });
+      
+      console.log("✅ Total merged timeline entries:", mergedList.length);
+      console.log("📊 Timeline sorted (newest first):", mergedList.map(e => `${e.type} @ ${e.createdAt}`));
+      
+      setAnnotationsMade(mergedList);
+    } catch (err) {
+      console.error("❌ Failed to fetch annotations timeline:", err);
+      // Still show local entries even if backend fails
+      setAnnotationsMade(localTimelineEntriesRef.current);
+    }
+  }, [inspectionNo, deletedDetectIds]);
 
   // === Load inspection + images ===
   useEffect(() => {
@@ -521,7 +1454,8 @@ const InspectionUploadPage = () => {
 
   useEffect(() => {
     fetchComments();
-  }, [fetchComments]);
+    fetchAnnotations();
+  }, [fetchComments, fetchAnnotations]);
 
   // === Upload ===
   const uploadImage = async (
@@ -647,6 +1581,355 @@ const InspectionUploadPage = () => {
   const handleReuploadBaseline = useCallback(() => { // NEW
     baselineInputRef.current?.click();
   }, []);
+
+  // Delete flow
+  const onOverlayClickForDelete = (idx: number) => {
+    if (!deleteMode) return;
+    setDeleteTargetIndex(idx);
+  };
+
+  const cancelDeleteComment = () => {
+    setDeleteTargetIndex(null);
+  };
+
+  // Edit flow
+  const onOverlayClickForEdit = (idx: number) => {
+    if (!editMode || editSelectedIndex != null) return;
+    setEditSelectedIndex(idx);
+  };
+
+  const onEditDraftChange = (draft: { left: number; top: number; width: number; height: number }) => {
+    setEditDraft(draft);
+  };
+
+  const cancelEditComment = () => {
+    // Close comment modal; remain in edit mode so user can continue adjusting or exit again
+    setEditCommentOpen(false);
+  };
+
+  const submitEditComment = async (comment: string) => {
+    if (editSelectedIndex == null || !inspectionNo) return;
+    const original = thermalPredictions[editSelectedIndex];
+    if (!original || !editDraft || !original.detectId) return;
+
+    setIsSubmittingEditComment(true);
+
+    // Convert draft CSS coords to model center coords
+    const newX = editDraft.left + editDraft.width / 2;
+    const newY = editDraft.top + editDraft.height / 2;
+
+    // Update UI first
+    const updated: Prediction = {
+      ...original,
+      x: newX,
+      y: newY,
+      width: editDraft.width,
+      height: editDraft.height,
+    };
+    setThermalPredictions((prev) => prev.map((p, i) => (i === editSelectedIndex ? updated : p)));
+
+    const classId = updated.label === "pf" ? 2 : updated.label === "f" ? 1 : 0;
+    const payload = {
+      width: updated.width,
+      height: updated.height,
+      x: updated.x,
+      y: updated.y,
+      confidence: updated.confidence,
+      classId: classId,
+      className: updated.label,
+      parentId: "image",
+      author: "Shaveen",
+      comment,
+      faultName: updated.tag // Send fault name to backend
+    };
+
+    try {
+      // CRITICAL: Backend repository expects String ID, but model has Long detectId
+      // Convert detectId to String for the URL
+      const detectIdStr = String(original.detectId);
+      console.log("📤 Sending EDIT request for detectId:", detectIdStr, "(converted from", original.detectId, ")");
+      console.log("📤 EDIT payload with fault name:", payload);
+      
+      const response = await axios.put(
+        `http://localhost:8080/api/v1/inspections/analyze/${detectIdStr}`,
+        payload
+      );
+      console.log("✅ EDIT response:", response.data);
+      // Refresh predictions and timeline to show the edit entry properly sorted
+      await fetchPredictions();
+      await fetchAnnotations();
+      
+      // Refresh the page after successful edit
+      window.location.reload();
+    } catch (e1) {
+      console.error("❌ Edit save failed:", e1);
+      if (axios.isAxiosError(e1)) {
+        console.error("❌ Error details:", e1.response?.data);
+        console.error("❌ Error status:", e1.response?.status);
+      }
+    } finally {
+      setIsSubmittingEditComment(false);
+      setEditSelectedIndex(null);
+      setEditDraft(null);
+      setEditCommentOpen(false);
+      setEditMode(false);
+    }
+  };
+
+  const submitDeleteComment = async (comment: string) => {
+    if (deleteTargetIndex == null || !inspectionNo) return;
+    const target = thermalPredictions[deleteTargetIndex];
+    
+    console.log("🔍 Delete target:", target);
+    console.log("🔍 Delete target detectId:", target.detectId, "Type:", typeof target.detectId);
+    
+    if (!target.detectId) {
+      console.error("❌ Cannot delete: detectId is missing!");
+      alert("Cannot delete: Detection ID is missing. Please refresh the page and try again.");
+      setDeleteTargetIndex(null);
+      setDeleteMode(false);
+      setIsSubmittingDeleteComment(false);
+      return;
+    }
+    
+    setIsSubmittingDeleteComment(true);
+
+    // Immediately remove from UI (optimistic update)
+    setThermalPredictions(prev => prev.filter((_, i) => i !== deleteTargetIndex));
+
+    // Track as deleted (persists in localStorage)
+    if (target.detectId) {
+      setDeletedDetectIds(prev => new Set(prev).add(target.detectId!));
+      
+      // Create a local timeline entry for Delete
+      const now = new Date().toISOString();
+      const localEntry: AnnotationEntry = {
+        anotationId: Date.now(), // Temporary ID
+        type: "delete",
+        comment: comment,
+        author: "Shaveen",
+        createdAt: now,
+        faultName: target.tag || "Unknown",
+        className: target.label // Store the actual class: "normal", "pf", "f"
+      };
+      
+      // Add to local timeline entries and sort immediately
+      setLocalTimelineEntries(prev => {
+        const updated = [localEntry, ...prev];
+        // Sort by timestamp immediately (newest first)
+        return updated.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+      });
+      console.log("✅ Created local timeline entry for Delete operation:", localEntry);
+    }
+
+    // ⚠️ BACKEND DELETE IS BROKEN - See BACKEND_FIXES_NEEDED.md
+    // Backend has type mismatch: Repository expects String but Model has Long detectId
+    // This causes 500 Internal Server Error when trying to delete
+    // Solution: Frontend-only delete until backend is fixed
+    
+    console.warn("⚠️ Backend DELETE endpoint is broken (type mismatch bug)");
+    console.warn("⚠️ Detection removed from UI only - backend database still has it");
+    console.warn("⚠️ See BACKEND_FIXES_NEEDED.md for fix instructions");
+    
+    // Try to call backend anyway (will likely fail, but won't affect UI)
+    const classId = target.label === "pf" ? 2 : target.label === "f" ? 1 : 0;
+    const payload = {
+      width: target.width,
+      height: target.height,
+      x: target.x,
+      y: target.y,
+      confidence: target.confidence,
+      classId: classId,
+      className: target.label,
+      parentId: "image",
+      author: "Shaveen",
+      comment,
+      faultName: target.tag || "Unknown" // Send fault name to backend
+    };
+
+    try {
+      const detectIdStr = String(target.detectId);
+      console.log("📤 Attempting DELETE request for detectId:", detectIdStr);
+      console.log("📤 DELETE payload with fault name:", payload);
+      
+      const response = await axios.delete(
+        `http://localhost:8080/api/v1/inspections/analyze/${detectIdStr}`,
+        { 
+          data: payload,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log("✅ DELETE succeeded (unexpected!):", response.status, response.data);
+    } catch (e1) {
+      console.warn("⚠️ Backend DELETE failed (expected due to type mismatch bug):", 
+        axios.isAxiosError(e1) ? e1.response?.data : e1);
+      // DON'T show error alert - this is expected
+      console.log("✅ Detection removed from UI, will stay removed via deletedDetectIds filter");
+    }
+    
+    // Refresh annotations timeline to show the delete entry
+    await fetchAnnotations();
+    
+    // Refresh the page after successful delete
+    window.location.reload();
+  };
+
+  // When user finishes drawing a rect on the thermal image
+  const handleBBoxDrawn = (rect: DrawnRect) => {
+    setPendingRect(rect);
+    // Open comment modal directly (skip details modal)
+    setCommentModalOpen(true);
+  };
+
+  const resetAnnoState = () => {
+    setIsAddMode(false);
+    setPendingRect(null);
+    setDetailsModalOpen(false);
+    setCommentModalOpen(false);
+    setAnnoFaultName("");
+    setAnnoConditionType("Faulty");
+    setAnnoConfidence("");
+    setAnnoComment("");
+  };
+
+  // Persist annotation audit with comment
+  const saveAnnotationWithComment = async (comment: string) => {
+    if (!inspectionNo || !pendingRect) return;
+    setSavingAnnotation(true);
+    try {
+      const cls =
+        annoConditionType === "Faulty" ? "pf" :
+        annoConditionType === "Potential Faulty" ? "f" : "normal";
+      const classId = cls === "pf" ? 2 : cls === "f" ? 1 : 0;
+      
+      // Auto-generate fault name based on condition type and count
+      const existingCount = thermalPredictions.filter(p => p.label === cls).length;
+      const autoFaultName = annoConditionType === "Faulty" ? `Faulty ${existingCount + 1}` : 
+                           annoConditionType === "Potential Faulty" ? `Potential Fault ${existingCount + 1}` : 
+                           `Normal ${existingCount + 1}`;
+      
+      // Default confidence to 0.95 (95%)
+      const confidence = 0.95;
+
+      // Update the list/overlays immediately with auto-generated fault name
+      setThermalPredictions((prev) => [
+        ...prev,
+        {
+          x: pendingRect.x,
+          y: pendingRect.y,
+          width: pendingRect.width,
+          height: pendingRect.height,
+          confidence: confidence,
+          label: cls,
+          tag: autoFaultName,
+        },
+      ]);
+
+      const payload = {
+        width: pendingRect.width,
+        height: pendingRect.height,
+        x: pendingRect.x,
+        y: pendingRect.y,
+        confidence,
+        classId: classId,
+        className: cls,
+        parentId: "image",
+        author: "Shaveen",
+        comment,
+        faultName: autoFaultName // Send auto-generated fault name to backend
+      };
+
+      console.log("📤 Sending ADD request with fault name:", payload);
+      const response = await axios.post(
+        `http://localhost:8080/api/v1/inspections/${inspectionNo}/analyze`,
+        payload
+      );
+      console.log("✅ ADD response:", response.data);
+
+      // Update the last added prediction with the detectId from response
+      if (response.data?.detectId) {
+        console.log("✅ Setting detectId:", response.data.detectId);
+        console.log("✅ Auto-generated fault name:", autoFaultName);
+        console.log("✅ Backend response detectName:", response.data.detectName);
+        
+        const detectId = response.data.detectId;
+        const now = new Date().toISOString();
+        
+        // Track this as an added detectId (workaround for backend bug)
+        setAddedDetectIds(prev => new Set(prev).add(detectId));
+        
+        // Create a local timeline entry since backend doesn't save Add operations
+        // Use the fault name from backend response (should match what we sent)
+        const savedFaultName = response.data.detectName || autoFaultName;
+        const localEntry: AnnotationEntry = {
+          anotationId: detectId, // Use detectId as temporary ID
+          type: "add",
+          comment: comment,
+          author: "Shaveen",
+          createdAt: now,
+          faultName: savedFaultName // Use backend's saved name
+        };
+        
+        // Add to local timeline entries
+        setLocalTimelineEntries(prev => {
+          const updated = [localEntry, ...prev];
+          // Sort by timestamp immediately (newest first)
+          return updated.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
+          });
+        });
+        console.log("✅ Created local timeline entry for Add operation:", localEntry);
+        
+        // Update the prediction we just added with the complete backend response
+        setThermalPredictions((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            const lastIndex = updated.length - 1;
+            // Update with all details from backend response
+            updated[lastIndex] = {
+              ...updated[lastIndex],
+              detectId: detectId,
+              tag: savedFaultName, // Use the saved fault name from backend
+              // Update other fields from backend if present
+              x: response.data.x ?? updated[lastIndex].x,
+              y: response.data.y ?? updated[lastIndex].y,
+              width: response.data.width ?? updated[lastIndex].width,
+              height: response.data.height ?? updated[lastIndex].height,
+              confidence: response.data.confidence ?? updated[lastIndex].confidence,
+              label: response.data.className ?? updated[lastIndex].label,
+            };
+            console.log("✅ Updated prediction with backend data:", updated[lastIndex]);
+          }
+          return updated;
+        });
+      } else {
+        console.warn("⚠️ No detectId in response!");
+      }
+
+      // Refresh annotations timeline to show the new entry
+      await fetchAnnotations();
+      
+      // Refresh the page after successful annotation addition
+      window.location.reload();
+    } catch (err) {
+      console.error("❌ Saving annotation failed:", err);
+      if (axios.isAxiosError(err)) {
+        console.error("❌ Error details:", err.response?.data);
+      }
+      alert("Failed to save annotation. Check console for details.");
+    } finally {
+      setSavingAnnotation(false);
+      resetAnnoState();
+    }
+  };
 
   // === Upload Progress Modal ===
   const ProgressModal = () => {
@@ -864,22 +2147,14 @@ const InspectionUploadPage = () => {
           res.data?.timestamp ?? res.data?.createdAt ?? new Date().toISOString(),
       };
       setComments((prev) => prev.map((c) => (c.id === tempId ? saved : c)));
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/save-analysis`,
-          {
-            inspectionId: inspectionNo,
-            predictions: thermalPredictions,
-            comment: `Topic: ${topic}\n${text}`,
-          }
-        );
-      } catch {
-        setComments((prev) => prev.filter((c) => c.id !== tempId));
-        setCommentTopic(topic);
-        setCommentText(text);
-        alert("Failed to save comment. Please try again.");
-      }
+      
+      // Refresh the page after successful comment addition
+      window.location.reload();
+    } catch (err) {
+      setComments((prev) => prev.filter((c) => c.id !== tempId));
+      setCommentTopic(topic);
+      setCommentText(text);
+      alert("Failed to save comment. Please try again.");
     } finally {
       setIsSavingComment(false);
     }
@@ -919,17 +2194,13 @@ const InspectionUploadPage = () => {
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`,
         { topic: newTopic, comment: newText }
       );
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/update-comment`,
-          { id: commentId, topic: newTopic, comment: newText }
-        );
-      } catch (err) {
-        console.error("❌ Failed to update comment:", err);
-        setComments(prevComments);
-        alert("Failed to update comment.");
-      }
+      
+      // Refresh the page after successful comment edit
+      window.location.reload();
+    } catch (err) {
+      console.error("❌ Failed to update comment:", err);
+      setComments(prevComments);
+      alert("Failed to update comment.");
     } finally {
       setSavingEditId(null);
       cancelEdit();
@@ -948,17 +2219,13 @@ const InspectionUploadPage = () => {
       await axios.delete(
         `http://localhost:8080/api/v1/inspections/comments/${commentId}`
       );
-    } catch {
-      try {
-        await axios.post(
-          `http://localhost:8080/api/v1/inspections/${inspectionNo}/delete-comment`,
-          { id: commentId }
-        );
-      } catch (err) {
-        console.error("❌ Failed to delete comment:", err);
-        setComments(prevComments);
-        alert("Failed to delete comment.");
-      }
+      
+      // Refresh the page after successful comment deletion
+      window.location.reload();
+    } catch (err) {
+      console.error("❌ Failed to delete comment:", err);
+      setComments(prevComments);
+      alert("Failed to delete comment.");
     } finally {
       setDeletingId(null);
     }
@@ -1051,152 +2318,469 @@ const InspectionUploadPage = () => {
               predictions={thermalPredictions}
               onReuploadThermal={handleReuploadThermal}
               onDeleteThermal={handleDeleteThermal}
+              enableBBoxDrawing={isAddMode}
+              onBBoxDrawn={handleBBoxDrawn}
+              deleteMode={deleteMode}
+              onOverlayClick={deleteMode ? onOverlayClickForDelete : onOverlayClickForEdit}
+              editMode={editMode}
+              editSelectedIndex={editSelectedIndex}
+              onEditDraftChange={onEditDraftChange}
             />
+
+            {/* Add/Edit/Delete controls (Step 1: Add) */}
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-2xl font-bold text-red-600">
+                Annotate  
+              </span>
+              <button
+                className={`px-4 py-2 rounded-lg text-white font-semibold ${
+                  isAddMode ? "bg-blue-700" : "bg-blue-600 hover:bg-blue-700"
+                } disabled:opacity-50`}
+                onClick={() => setIsAddMode((v) => !v)}
+                disabled={!thermalImage}
+                title="Add a new bounding box"
+              >
+                {isAddMode ? "Adding… Click & drag" : "Add"}
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg font-semibold ${editMode ? "bg-amber-600 text-white" : "border hover:bg-amber-50 text-amber-700"}`}
+                title={editMode ? "Exit Edit (will ask for comment if changes present)" : "Edit a bounding box"}
+                onClick={() => {
+                  if (!editMode) {
+                    // Enter edit mode
+                    setEditMode(true);
+                    setIsAddMode(false);
+                    setDeleteMode(false);
+                  } else {
+                    // Attempt to exit edit mode; if changes exist, open comment modal instead
+                    if (editSelectedIndex != null && editDraft) {
+                      setEditCommentOpen(true);
+                    } else {
+                      // No changes to save; just exit
+                      setEditMode(false);
+                      setEditSelectedIndex(null);
+                      setEditDraft(null);
+                    }
+                  }
+                }}
+              >
+                {editMode ? "Exit Edit" : "Edit"}
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg font-semibold ${deleteMode ? "bg-red-600 text-white" : "border hover:bg-red-50 text-red-700"}`}
+                title={deleteMode ? "Click a box to delete" : "Delete a bounding box"}
+                onClick={() => {
+                  setDeleteMode((m) => !m);
+                  if (!deleteMode) setIsAddMode(false);
+                }}
+              >
+                {deleteMode ? "Exit Delete" : "Delete"}
+              </button>
+            </div>
           </div>
         ) : (
           <ImageUploadCard type="thermal" />
         )}
       </div>
 
-      {/* Analysis */}
+      {/* Annotations Made */}
+      <section className="mt-8">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-visible">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsAnnotationsExpanded(!isAnnotationsExpanded)}
+                className="p-2 bg-gray-700 hover:bg-gray-800 rounded-xl transition-colors shadow-sm"
+                title={isAnnotationsExpanded ? "Collapse" : "Expand"}
+              >
+                {isAnnotationsExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-white" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-white" />
+                )}
+              </button>
+              <h3 className="text-3xl font-bold tracking-tight text-red-700">Annotations Made</h3>
+              <span className="text-sm text-gray-500">{annotationsMade.length} change{annotationsMade.length !== 1 ? "s" : ""}</span>
+            </div>
+            {annotationsMade.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors shadow-sm"
+                  title="Export annotations"
+                >
+                  <Download className="h-5 w-5" />
+                  Export
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                
+                {isExportDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white shadow-2xl border border-gray-200 z-[9999] py-1">
+                    <button
+                      onClick={() => {
+                        exportAnnotationsToCSV(annotationsMade, inspectionNo || "", transformerNo || "");
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                    >
+                      <Download className="h-4 w-4 text-gray-500" />
+                      <span>Export as CSV</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportAnnotationsToJSON(annotationsMade, inspectionNo || "", transformerNo || "");
+                        setIsExportDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                    >
+                      <Download className="h-4 w-4 text-gray-500" />
+                      <span>Export as JSON</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {isAnnotationsExpanded && (
+            <div className="p-6">
+              {annotationsMade.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+                  <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Tag className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-600">No annotations have been made yet.</p>
+                  <p className="text-sm text-gray-500 mt-1">Annotations will appear here when you add, edit, or delete detections.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-6">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b-2 border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Image ID</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Transformer ID</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Action Taken</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Fault Name</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Comment</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-6 text-left text-xl font-bold text-gray-700 uppercase tracking-wider">Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {annotationsMade.map((a, idx) => (
+                        <tr 
+                          key={a.anotationId || `local-${idx}`} 
+                          className="hover:bg-gray-50 transition-colors duration-150"
+                        >
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {inspectionNo}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {transformerNo || "—"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-2.5 rounded-full px-5 py-2 text-lg font-semibold shadow-sm ${
+                              a.type.toLowerCase() === "add"
+                                ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200"
+                                : a.type.toLowerCase() === "edit"
+                                ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                                : "bg-red-50 text-red-700 ring-1 ring-red-200"
+                            }`}>
+                              {a.type.toLowerCase() === "add" && (
+                                <span className="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                              )}
+                              {a.type.toLowerCase() === "edit" && (
+                                <span className="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                              )}
+                              {a.type.toLowerCase() === "delete" && (
+                                <span className="h-2.5 w-2.5 rounded-full bg-red-500"></span>
+                              )}
+                              {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <span className="text-xl font-semibold text-gray-900">
+                              {a.faultName || <span className="text-gray-400">—</span>}
+                            </span>
+                          </td>
+                          <td className="px-6 py-6">
+                            <div className="max-w-2xl">
+                              <p className="text-xl text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                {a.comment || <span className="text-gray-400 italic">No comment</span>}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                {a.author.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-xl font-medium text-gray-900">{a.author}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-6 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-lg font-medium text-gray-900">
+                                {new Date(a.createdAt).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })}
+                              </span>
+                              <span className="text-base text-gray-500">
+                                {new Date(a.createdAt).toLocaleTimeString('en-US', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Detected Issues */}
       <section className="mt-10">
         <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-3xl font-bold tracking-tight text-red-600">
-              Model Detected Issues
-            </h3>
-            {!isAnalyzing && (
-              <span className="text-sm text-gray-500">
-                {thermalPredictions.length} item
-                {thermalPredictions.length !== 1 ? "s" : ""}
-              </span>
-            )}
+            <div className="flex items-center gap-4">
+              <h3 className="text-3xl font-bold tracking-tight text-red-600">
+                Detected Issues
+              </h3>
+              {!isAnalyzing && (
+                <span className="text-sm text-gray-500">
+                  {thermalPredictions.length} item
+                  {thermalPredictions.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="p-6">
-            {isAnalyzing ? (
-              <p className="text-blue-700 text-lg font-semibold">Analyzing…</p>
-            ) : thermalPredictions.length > 0 ? (
-              <ul className="space-y-3">
-                {thermalPredictions.map((pred, idx) => {
-                  const isFault = pred.label === "pf";
-                  const isError = pred.label === "f";
-                  const statusText = isFault
-                    ? "Faulty"
-                    : isError
-                    ? "Potentially Faulty"
-                    : "Normal";
+              {isAnalyzing ? (
+                <p className="text-blue-700 text-lg font-semibold">Analyzing…</p>
+              ) : thermalPredictions.length > 0 ? (
+                <ul className="space-y-3">
+                  {thermalPredictions.map((pred, idx) => {
+                    const isFault = pred.label === "pf";
+                    const isError = pred.label === "f";
+                    const statusText = isFault
+                      ? "Faulty"
+                      : isError
+                      ? "Potentially Faulty"
+                      : "Normal";
 
-                  const wrapperClasses = isFault
-                    ? "from-red-50 to-rose-50 border-red-200"
-                    : isError
-                    ? "from-amber-50 to-yellow-50 border-amber-200"
-                    : "from-emerald-50 to-green-50 border-emerald-200";
+                    const wrapperClasses = isFault
+                      ? "from-red-50 to-rose-50 border-red-200"
+                      : isError
+                      ? "from-amber-50 to-yellow-50 border-amber-200"
+                      : "from-emerald-50 to-green-50 border-emerald-200";
 
-                  return (
-                    <li
-                      key={idx}
-                      className={`flex items-start gap-4 p-4 rounded-2xl border bg-gradient-to-r ${wrapperClasses} shadow-sm`}
-                    >
-                      <div className="shrink-0 mt-0.5">
-                        {isFault ? (
-                          <AlertOctagon className="h-6 w-6 text-red-600" />
-                        ) : isError ? (
-                          <AlertTriangle className="h-6 w-6 text-amber-600" />
-                        ) : (
-                          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                        )}
-                      </div>
+                    // Check if this detection was added by inspector (vs AI model)
+                    const isInspectorDetected = pred.detectId ? addedDetectIds.has(pred.detectId) : false;
 
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <span className="text-2xl font-bold text-gray-900">
-                            {pred.tag}
-                          </span>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-2xl font-semibold
-                            ${
-                              isFault
-                                ? "bg-red-100 text-red-700"
-                                : isError
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-emerald-100 text-emerald-800"
-                            }`}
-                          >
-                            {statusText}
-                          </span>
+                    return (
+                      <li
+                        key={idx}
+                        className={`flex items-start gap-4 p-4 rounded-2xl border bg-gradient-to-r ${wrapperClasses} shadow-sm`}
+                      >
+                        <div className="shrink-0 mt-0.5">
+                          {isFault ? (
+                            <AlertOctagon className="h-6 w-6 text-red-600" />
+                          ) : isError ? (
+                            <AlertTriangle className="h-6 w-6 text-amber-600" />
+                          ) : (
+                            <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                          )}
                         </div>
 
-                        <p className="mt-1 text-2xl text-gray-700">
-                          Confidence: {(pred.confidence * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                <p className="text-lg font-semibold text-emerald-800">
-                  No issues detected by the model.
-                </p>
-              </div>
-            )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <span className="text-2xl font-bold text-gray-900">
+                              {pred.tag}
+                            </span>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-2xl font-semibold
+                              ${
+                                isFault
+                                  ? "bg-red-100 text-red-700"
+                                  : isError
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
+                              {statusText}
+                            </span>
+                            {/* Source badge */}
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold
+                              ${
+                                isInspectorDetected
+                                  ? "bg-purple-100 text-purple-700 ring-1 ring-purple-200"
+                                  : "bg-blue-100 text-blue-700 ring-1 ring-blue-200"
+                              }`}
+                            >
+                              {isInspectorDetected ? "Inspector Detected" : "Model Generated"}
+                            </span>
+                          </div>
 
-            {/* ---------------------------- Comments block ---------------------------- */}
-            <div className="mt-12">
-              <h4 className="text-2xl md:text-3xl font-bold text-red-600 mb-6 flex items-center gap-3">
+                          <p className="mt-1 text-2xl text-gray-700">
+                            Confidence: {(pred.confidence * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                  <p className="text-lg font-semibold text-emerald-800">
+                    No issues detected by the model.
+                  </p>
+                </div>
+              )}
+            </div>
+        </div>
+      </section>
+
+      {/* Feedback Log */}
+      <section className="mt-10">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-visible">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between relative z-10">
+            <h3 className="text-3xl font-bold tracking-tight text-red-600">
+              Feedback Log
+            </h3>
+            <div className="relative">
+              <button
+                onClick={() => setIsFeedbackExportDropdownOpen(!isFeedbackExportDropdownOpen)}
+                disabled={thermalPredictions.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 
+                          disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg 
+                          font-semibold transition-colors shadow-sm"
+              >
+                <Download className="h-5 w-5" />
+                Export
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              
+              {isFeedbackExportDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white shadow-2xl border border-gray-200 z-[9999] py-1">
+                  <button
+                    onClick={() => {
+                      exportFeedbackLogToCSV(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "");
+                      setIsFeedbackExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                  >
+                    <Download className="h-4 w-4 text-gray-500" />
+                    <span>Export as CSV</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      exportFeedbackLogToJSON(thermalPredictions, annotationsMade, inspectionNo || "", addedDetectIds, deletedDetectIds, transformerNo || "");
+                      setIsFeedbackExportDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-blue-50 text-gray-700 flex items-center gap-3 transition-colors"
+                  >
+                    <Download className="h-4 w-4 text-gray-500" />
+                    <span>Export as JSON</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Comments by Inspector */}
+      <section className="mt-10">
+        <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black/5 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsCommentsExpanded(!isCommentsExpanded)}
+                className="p-2 bg-gray-700 hover:bg-gray-800 rounded-xl transition-colors shadow-sm"
+                title={isCommentsExpanded ? "Collapse" : "Expand"}
+              >
+                {isCommentsExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-white" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-white" />
+                )}
+              </button>
+              <h3 className="text-3xl font-bold tracking-tight text-red-600">
                 Comments by Inspector
-              </h4>
+              </h3>
+              <span className="text-sm text-gray-500">
+                {comments.length} comment{comments.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
 
-              {comments.length > 0 ? (
-                <div className="relative">
-                  <div className="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-blue-200 via-gray-200 to-transparent hidden sm:block" />
-                  <ul className="space-y-4 mb-10">
+          <div className="p-6">
+            {/* Collapsible Comments List */}
+            {isCommentsExpanded && (
+              <>
+                {comments.length > 0 ? (
+                  <div className="relative mb-10">
+                    <ul className="space-y-5">
                     {comments.map((c, i) => {
                       const isEditing = editingId === (c.id || "");
                       const isSavingThis = savingEditId === (c.id || "");
                       const isDeletingThis = deletingId === (c.id || "");
                       return (
                         <li key={c.id ?? `${c.timestamp}-${i}`} className="relative">
-                          <span className="hidden sm:block absolute -left-0.5 top-5 h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
-                          <div className="group rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 px-5 py-4 bg-gradient-to-r from-gray-50 to-white">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Tag className="h-5 w-5 text-gray-400 shrink-0" />
+                          <div className="group rounded-xl border border-gray-200 bg-white shadow-lg hover:shadow-xl hover:border-blue-400 transition-all duration-300 overflow-hidden">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-6 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-gray-200">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="p-2.5 bg-blue-500 rounded-lg shadow-sm shrink-0">
+                                  <Tag className="h-5 w-5 text-white" />
+                                </div>
                                 {isEditing ? (
                                   <input
                                     value={editTopic}
                                     onChange={(e) => setEditTopic(e.target.value)}
-                                    className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-lg font-semibold focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                    className="w-full rounded-lg border-2 border-blue-300 px-4 py-2.5 text-xl font-bold focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none bg-white shadow-sm"
                                   />
                                 ) : (
-                                  <h5 className="text-lg md:text-2xl font-bold text-black-900 truncate">
+                                  <h5 className="text-xl md:text-2xl font-bold text-gray-900">
                                     {c.topic}
                                   </h5>
                                 )}
                               </div>
 
-                              <div className="flex items-center gap-4 text-lg text-black-600">
-                                <span className="inline-flex items-center gap-1">
-                                  <Clock className="h-6 w-6" />
-                                  <span className="text-xl font-bold">
+                              <div className="flex flex-wrap items-center gap-3">
+                                <div className="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg border border-gray-200">
+                                  <Clock className="h-4 w-4 text-gray-600" />
+                                  <span className="text-sm font-semibold text-gray-700">
                                     {formatDateTime(c.timestamp)}
                                   </span>
-                                </span>
+                                </div>
                                 {c.author && (
-                                  <span className="inline-flex items-center gap-2">
-                                    <UserIcon className="h-8 w-8" />
-                                    <span className="text-xl font-bold">{c.author}</span>
-                                  </span>
+                                  <div className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-sm">
+                                    <div className="h-5 w-5 rounded-full bg-white flex items-center justify-center">
+                                      <UserIcon className="h-3 w-3 text-blue-600" />
+                                    </div>
+                                    <span className="text-sm font-bold text-white">{c.author}</span>
+                                  </div>
                                 )}
 
-                                <div className="flex items-center gap-2 ml-2">
+                                <div className="flex items-center gap-2">
                                   {!isEditing ? (
                                     <>
                                       <button
-                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
                                         onClick={() => startEdit(c)}
                                         title="Edit"
                                       >
@@ -1204,7 +2788,7 @@ const InspectionUploadPage = () => {
                                         Edit
                                       </button>
                                       <button
-                                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-red-50 ${
+                                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-colors ${
                                           isDeletingThis ? "opacity-60 pointer-events-none" : ""
                                         }`}
                                         onClick={() => deleteComment(c.id || "")}
@@ -1213,15 +2797,15 @@ const InspectionUploadPage = () => {
                                         {isDeletingThis ? (
                                           <Loader2 className="h-4 w-4 animate-spin" />
                                         ) : (
-                                          <Trash2 className="h-4 w-4 text-white-600" />
+                                          <Trash2 className="h-4 w-4" />
                                         )}
-                                        <span className="text-white-700">Delete</span>
+                                        Delete
                                       </button>
                                     </>
                                   ) : (
                                     <>
                                       <button
-                                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm text-white ${
+                                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm ${
                                           isSavingThis
                                             ? "bg-blue-400 cursor-not-allowed"
                                             : "bg-blue-600 hover:bg-blue-700"
@@ -1238,7 +2822,7 @@ const InspectionUploadPage = () => {
                                         Save
                                       </button>
                                       <button
-                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                                         onClick={cancelEdit}
                                         title="Cancel"
                                       >
@@ -1251,20 +2835,20 @@ const InspectionUploadPage = () => {
                               </div>
                             </div>
 
-                            <div className="px-5 py-4">
+                            <div className="px-6 py-6 bg-white">
                               {isEditing ? (
                                 <div className="relative">
-                                  <MessageSquareText className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                                  <MessageSquareText className="absolute left-4 top-4 h-6 w-6 text-gray-400" />
                                   <textarea
                                     value={editText}
                                     onChange={(e) => setEditText(e.target.value)}
-                                    className="w-full min-h-36 rounded-2xl border-2 border-gray-200 pl-10 pr-4 py-3
+                                    className="w-full min-h-40 rounded-lg border-2 border-gray-300 pl-12 pr-4 py-4
                                                text-lg leading-relaxed shadow-sm placeholder:text-gray-400
-                                               focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
+                                               focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                                   />
                                 </div>
                               ) : (
-                                <p className="text-xl md:text-2xl leading-relaxed text-gray-800 whitespace-pre-wrap">
+                                <p className="text-lg md:text-xl leading-relaxed text-gray-700 whitespace-pre-wrap">
                                   {c.text}
                                 </p>
                               )}
@@ -1276,16 +2860,23 @@ const InspectionUploadPage = () => {
                   </ul>
                 </div>
               ) : (
-                <div className="mb-10 rounded-2xl border border-dashed border-blue-300 bg-blue-50/40 p-8 text-center">
-                  <MessageSquareText className="mx-auto mb-3" />
-                  <p className="text-gray-700 font-semibold">
-                    No Comments yet
+                <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-10 text-center">
+                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
+                    <MessageSquareText className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <p className="text-xl font-bold text-gray-700 mb-1">
+                    No Comments Yet
+                  </p>
+                  <p className="text-base text-gray-500">
+                    Add your first inspection comment below
                   </p>
                 </div>
               )}
+              </>
+            )}
 
-              {/* Composer */}
-              <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6">
+            {/* Composer - Always Visible */}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6">
                 <div className="grid grid-cols-1 gap-5">
                   <div>
                     <label className="block text-lg md:text-2xl font-bold text-gray-800 mb-2">
@@ -1337,12 +2928,194 @@ const InspectionUploadPage = () => {
                 </div>
               </div>
               {/* /Composer */}
-            </div>
           </div>
         </div>
       </section>
+
+      {/* --------- Details Modal (Fault Name, Condition, Confidence) --------- */}
+      {/* ------------------------ Comment modal with condition type ------------------------ */}
+      <ModalShell
+        open={commentModalOpen}
+        onClose={resetAnnoState}
+        title="Add a comment"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Please add a comment to confirm this annotation. This will be saved with
+            annotation type, user, and timestamp.
+          </p>
+          
+          {/* Condition Type */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">Condition Type</label>
+            <select
+              className="w-full border rounded-lg px-3 py-2"
+              value={annoConditionType}
+              onChange={(e) => setAnnoConditionType(e.target.value as any)}
+            >
+              <option>Faulty</option>
+              <option>Normal</option>
+              <option>Potential Faulty</option>
+            </select>
+          </div>
+          
+          {/* Comment */}
+          <div>
+            <label className="block text-sm font-semibold mb-1">Comment</label>
+            <textarea
+              className="w-full min-h-28 border rounded-lg px-3 py-2"
+              value={annoComment}
+              onChange={(e) => setAnnoComment(e.target.value)}
+              placeholder="Comment about why this box was added"
+            />
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <button className="px-4 py-2 rounded-lg border" onClick={resetAnnoState}>
+              Cancel
+            </button>
+            <button
+              className={`px-4 py-2 rounded-lg text-white ${
+                savingAnnotation ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+              }`}
+              disabled={savingAnnotation}
+              onClick={() => saveAnnotationWithComment(annoComment)}
+            >
+              {savingAnnotation ? "Saving…" : "Save Comment"}
+            </button>
+          </div>
+        </div>
+      </ModalShell>
+      
+      {/* Delete comment modal */}
+      <CommentModal
+        open={deleteMode && deleteTargetIndex != null}
+        title="Confirm Deletion"
+        subtitle="Please enter a brief reason for deleting this annotation."
+        placeholder="Reason for deletion…"
+        onCancel={cancelDeleteComment}
+        onSubmit={submitDeleteComment}
+        isSubmitting={isSubmittingDeleteComment}
+      />
+
+      {/* Edit comment modal */}
+      <CommentModal
+        open={editCommentOpen}
+        title="Confirm Edit"
+        subtitle="Please enter a brief comment describing the modification."
+        placeholder="Reason for edit…"
+        onCancel={cancelEditComment}
+        onSubmit={submitEditComment}
+        isSubmitting={isSubmittingEditComment}
+      />
     </PageLayout>
   );
 };
 
+// ---------- Modals for Annotation Details and Comment ----------
+
+const ModalShell: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}> = ({ open, onClose, title, children }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40">
+      <div className="bg-white w-[min(92vw,560px)] rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <button className="p-1 rounded hover:bg-gray-100" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// We extend the default export to render the modals at the end of the tree
+const WrappedInspectionUploadPage: React.FC = () => {
+  // We need access to inner state, so render the original component and portals
+  // But since the page component already contains states, we can't easily wrap here without refactor.
+  // Therefore, this wrapper is a no-op. The modals are rendered inline within the page above.
+  return <></>;
+};
+
 export default InspectionUploadPage;
+
+// Hoisted function component used above in JSX
+type CommentModalProps = {
+  open: boolean;
+  title?: string;
+  subtitle?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  isSubmitting?: boolean;
+  onCancel: () => void;
+  onSubmit: (comment: string) => void | Promise<void>;
+};
+
+function CommentModal({
+  open,
+  title = "Add a comment",
+  subtitle,
+  placeholder = "Type your comment…",
+  defaultValue = "",
+  isSubmitting = false,
+  onCancel,
+  onSubmit,
+}: CommentModalProps) {
+  const [value, setValue] = React.useState<string>(defaultValue);
+  React.useEffect(() => {
+    if (open) setValue(defaultValue || "");
+  }, [open, defaultValue]);
+
+  if (!open) return null;
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    await onSubmit(value.trim());
+  };
+
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/40">
+      <div className="bg-white w-[min(92vw,560px)] rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xl font-bold">{title}</h3>
+          <button className="p-1 rounded hover:bg-gray-100" onClick={onCancel} aria-label="Close">
+            <X />
+          </button>
+        </div>
+        {subtitle && <p className="text-sm text-gray-600 mb-3">{subtitle}</p>}
+        <textarea
+          className="w-full min-h-28 border rounded-lg px-3 py-2"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button className="px-4 py-2 rounded-lg border" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </button>
+          <button
+            className={`px-4 py-2 rounded-lg text-white ${isSubmitting ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"}`}
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving…
+              </span>
+            ) : (
+              "Save Comment"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,12 +1,8 @@
 package com.orbit.Orbit.web;
 
-import com.orbit.Orbit.dto.CommentResponse;
-import com.orbit.Orbit.dto.InspectionRequest;
-import com.orbit.Orbit.dto.InspectionResponse;
-import com.orbit.Orbit.dto.RoboflowResponse;
-import com.orbit.Orbit.model.Inspection;
-import com.orbit.Orbit.model.InspectionComment;
-import com.orbit.Orbit.model.Transformer;
+import com.orbit.Orbit.dto.*;
+import com.orbit.Orbit.model.*;
+import com.orbit.Orbit.service.DetectsService;
 import com.orbit.Orbit.service.InspectionService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -23,10 +19,12 @@ public class InspectionController {
 
 
     private final InspectionService inspectionService;
+    private final DetectsService detectsService;
     private String InspectionNumber;
 
-    public InspectionController (InspectionService inspectionService){
+    public InspectionController (InspectionService inspectionService, DetectsService detectsService){
         this.inspectionService = inspectionService;
+        this.detectsService = detectsService;
     }
 
 
@@ -84,23 +82,58 @@ public class InspectionController {
 
     }
 
+    //Analyze
+
     @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze")
-    public ResponseEntity<RoboflowResponse> analyzeImage(@PathVariable String inspectionNumber) {
-        RoboflowResponse prediction = inspectionService.getPrediction(inspectionNumber);
-        return ResponseEntity.ok(prediction);
+    public ResponseEntity<List<DetectionResponse>> analyzeImage(@PathVariable String inspectionNumber) {
+        List<DetectionResponse> detections = detectsService.get(inspectionNumber);
+        return ResponseEntity.ok(detections);
     }
 
-    @PutMapping("/api/v1/inspections/{inspectionNumber}/analyze")
-    public ResponseEntity<RoboflowResponse> updatePrediction(
-            @PathVariable String inspectionNumber,
-            @RequestBody RoboflowResponse prediction) {
+    @GetMapping("/api/v1/inspections/{inspectionNumber}/analyze/timeline")
+    public ResponseEntity<List<TimelineResponse>> getTimeline(@PathVariable String inspectionNumber) {
+        List<TimelineResponse> detections = detectsService.timelineget(inspectionNumber);
+        return ResponseEntity.ok(detections);
+    }
 
-        // Save the provided prediction JSON to DB
-        inspectionService.updatePrediction(inspectionNumber, prediction);
+    @GetMapping("/api/v1/inspections/analyze/all")
+    public ResponseEntity<List<DetectionResponse>> getAllDetections() {
+        List<DetectionResponse> detections = detectsService.getAllDetects();
+        return ResponseEntity.ok(detections);
+    }
 
+    @GetMapping("/api/v1/inspections/analyze/timeline/all")
+    public ResponseEntity<List<TimelineResponse>> getAllTimeline() {
+        List<TimelineResponse> timeline = detectsService.getAllTimeline();
+        return ResponseEntity.ok(timeline);
+    }
+
+    @PutMapping("/api/v1/inspections/analyze/{detectId}")
+    public ResponseEntity<InspectionModelDetects> updatePrediction(
+            @PathVariable String detectId,
+            @RequestBody UpdateDetectionRequest req) {
+
+        InspectionModelDetects updated = detectsService.update(req,detectId);
         // Return it back
-        return ResponseEntity.ok(prediction);
+        return ResponseEntity.ok(updated);
     }
+
+    @PostMapping("/api/v1/inspections/{inspectionNumber}/analyze")
+    public ResponseEntity<InspectionModelDetects> adddetect(
+            @PathVariable String inspectionNumber,
+            @RequestBody UpdateDetectionRequest req) {
+        InspectionModelDetects detect =  detectsService.add(req,inspectionNumber);
+        return ResponseEntity.ok(detect);
+    }
+
+    @DeleteMapping("/api/v1/inspections/analyze/{detectId}")
+    public ResponseEntity<Void> deleteDetectionByDetectId(
+            @PathVariable String detectId,
+            @RequestBody UpdateDetectionRequest req) {
+        detectsService.deleteByDetectId(req,detectId); // implement below
+        return ResponseEntity.noContent().build(); // 204
+    }
+
 
 
 
@@ -157,11 +190,11 @@ public class InspectionController {
 
 
     @DeleteMapping("/api/v1/inspections/{inspectionNumber}")
-    public void delete(@PathVariable String inspectionNumber){
+    public ResponseEntity<Void> delete(@PathVariable String inspectionNumber){
         if(!inspectionService.delete(inspectionNumber)){
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-
+        return ResponseEntity.noContent().build(); // 204 No Content
     }
 
 
