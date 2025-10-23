@@ -1,6 +1,6 @@
 # ⚡ Orbit – Transformer Management System
 
-Orbit is a web-based system designed to **digitize and streamline routine thermal inspections of distribution transformers**. Currently, inspections are manual, time-consuming, and error-prone. This project lays the foundation for an end-to-end inspection workflow.
+Orbit is a web-based system designed to **digitize and streamline routine thermal inspections of distribution transformers**. This project lays the foundation for an end-to-end inspection workflow where it integrates a detection pipeline with an interactive annotation and feedback loop, allowing users to adjust detections directly through the interface. Corrected annotations are logged and later used to fine-tune the model automatically, enabling continuous performance improvement and adaptability to real-world data.
 
 ---
 
@@ -29,11 +29,13 @@ This feature empowers users to refine detections and ensure high-quality inspect
 All annotation changes are automatically captured and saved in the backend.  
 Each record includes:
 
-* User ID  
-* Timestamp  
-* Image ID  
-* Transformer ID  
-* Action taken  
+* Annotation ID  
+* Detection ID
+* Inspection number
+* Annotations type
+* User
+* Comment
+* Timestamp   
 
 When the same image is revisited, existing annotations are automatically reloaded, maintaining a consistent inspection history.
 
