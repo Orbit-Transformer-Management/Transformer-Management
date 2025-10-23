@@ -4,9 +4,54 @@ Orbit is a web-based system designed to **digitize and streamline routine therma
 
 ---
 
-## 📌 Current Implementation (Phase 2)
+## ⚙️ Phase 3 – Interactive Annotation & Feedback Loop
 
-We have completed **Phase 2 – Automated Fault Detection & Inspection Comments**, which introduces AI-powered analysis and feedback management, enhancing the system’s intelligence and usability.
+We have completed phase 3 focusing on enhancing user control, data accuracy, and model improvement.
+
+### 🖊️ Interactive Annotation Tools
+
+On the anomaly detection view, inspectors can now directly interact with the AI-detected anomalies by:
+
+* Adjusting existing anomaly markers (resize, reposition)
+* Deleting incorrect detections
+* Adding new anomaly markers by drawing bounding boxes
+
+Each annotation captures:
+
+* Annotation type (added / edited / deleted)  
+* Optional comments or notes  
+* Timestamp and user ID  
+
+This feature empowers users to refine detections and ensure high-quality inspection records.
+
+### 🗃️ Metadata and Annotation Persistence
+
+All annotation changes are automatically captured and saved in the backend.  
+Each record includes:
+
+* User ID  
+* Timestamp  
+* Image ID  
+* Transformer ID  
+* Action taken  
+
+When the same image is revisited, existing annotations are automatically reloaded, maintaining a consistent inspection history.
+
+### 🔁 Feedback Integration for Model Improvement
+
+The system now facilitates the automatic collection of high-quality training data, enabling continuous model retraining (Finetuning).
+
+- Feedback Log Generation: A service endpoint allows for the export of a structured JSON log containing:
+   - The Final Human-Validated Annotations
+   - Annotator metadata
+
+- Automated Retraining Readiness: This exportable log can be formatted for direct ingestion to Roboflow, setting up the automated finetuning of the model when enough new, corrected data is accumulated.
+
+---
+
+## 📌 Phase 2 – Automated Fault Detection & Inspection Comments
+
+In phase 2 we introduced AI-powered analysis and feedback management, enhancing the system’s intelligence and usability.
 
 ### 🔍 Roboflow AI Integration
 
@@ -41,9 +86,9 @@ Comments are stored in a dedicated table linked to the inspection. Admins can vi
 
 ---
 
-## 🗂️ Previous Implementation (Phase 1)
+## 🗂️ Phase 1 – Transformer and Baseline Image Management
 
-**Phase 1 – Transformer and Baseline Image Management** laid the foundation for managing transformers and baseline images.
+Phase 1 laid the foundation for managing transformers and baseline images.
 
 ### Admin Interface for Transformer Management
 
@@ -103,6 +148,17 @@ Comments are stored in a dedicated table linked to the inspection. Admins can vi
 | POST   | /api/v1/inspections/{inspectionNumber}/comment | Add a new comment to a specific inspection      |
 | GET    | /api/v1/inspections/{inspectionNumber}/analyze | Retrieve AI model predictions for an inspection |
 | PUT    | /api/v1/inspections/{inspectionNumber}/analyze | Update AI model predictions for an inspection   |
+
+### Phase 3 – Interactive Annotation & Feedback APIs
+
+| Method  | Endpoint                                                | Description                                                      |
+| ------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
+| GET     | /api/v1/inspections/{inspectionNumber}/analyze/timeline | Retrieve timeline of all annotation edits for a given inspection |
+| GET     | /api/v1/inspections/analyze/timeline/all                | Retrieve timeline of all annotation edits across inspections     |
+| GET     | /api/v1/inspections/analyze/all                         | Retrieve all detections across inspections                       |
+| POST    | /api/v1/inspections/{inspectionNumber}/analyze          | Add a new anomaly annotation                                     |
+| PUT     | /api/v1/inspections/analyze/{detectId}                  | Update or modify existing anomaly annotation                     |
+| DELETE  | /api/v1/inspections/analyze/{detectId}                  | Delete a detection or annotation                                 |
 
 ---
 
