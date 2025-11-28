@@ -2,6 +2,9 @@ package com.orbit.Orbit.model;
 
 import jakarta.persistence.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 public class MaintenanceRecord {
     @Id
@@ -25,15 +28,20 @@ public class MaintenanceRecord {
     @JoinColumn(name = "transformer_id")
     private Transformer transformer;
 
-    @ManyToOne
-    @JoinColumn(name = "inspection_id")
-    private Inspection inspection;
+    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "record_inspections", // Name of the join table in the DB
+            joinColumns = @JoinColumn(name = "maintenance_record_id"), // FK to this class
+            inverseJoinColumns = @JoinColumn(name = "inspection_id")   // FK to the Inspection class
+    )
+    private List<Inspection> inspections;
+
 
 
     public MaintenanceRecord() {
     }
 
-    public MaintenanceRecord(Long id, String inspectorName, String transformerStatus, Double voltage, Double current, String recommendedAction, String additionalRemarks, String otherNotes, Transformer transformer, Inspection inspection) {
+    public MaintenanceRecord(Long id, String inspectorName, String transformerStatus, Double voltage, Double current, String recommendedAction, String additionalRemarks, String otherNotes, Transformer transformer, List<Inspection> inspections) {
         this.id = id;
         this.inspectorName = inspectorName;
         this.transformerStatus = transformerStatus;
@@ -43,7 +51,7 @@ public class MaintenanceRecord {
         this.additionalRemarks = additionalRemarks;
         this.otherNotes = otherNotes;
         this.transformer = transformer;
-        this.inspection = inspection;
+        this.inspections = inspections;
     }
 
     public Long getId() {
@@ -118,11 +126,11 @@ public class MaintenanceRecord {
         this.transformer = transformer;
     }
 
-    public Inspection getInspection() {
-        return inspection;
+    public List<Inspection> getInspections() {
+        return inspections;
     }
 
-    public void setInspection(Inspection inspection) {
-        this.inspection = inspection;
+    public void setInspections(List<Inspection> inspections) {
+        this.inspections = inspections;
     }
 }

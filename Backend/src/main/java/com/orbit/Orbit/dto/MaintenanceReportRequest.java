@@ -9,6 +9,18 @@ public class MaintenanceReportRequest {
     private String otherNotes;
     private String inspectorName;
     private String transformerNumber;
+    private java.util.List<String> inspectionsNumbers;
+
+    
+    
+    public java.util.List<String> getInspectionsNumbers() {
+        return inspectionsNumbers;
+    }
+
+    public void setInspectionsNumbers(java.util.List<String> inspectionsNumbers) {
+        this.inspectionsNumbers = inspectionsNumbers;
+    }
+
 
     // Getters and Setters
     public Double getVoltage() {
