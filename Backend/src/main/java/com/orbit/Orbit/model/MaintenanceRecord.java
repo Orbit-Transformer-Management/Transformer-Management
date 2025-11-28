@@ -1,5 +1,7 @@
 package com.orbit.Orbit.model;
 
+import jakarta.persistence.*;
+
 @Entity
 public class MaintenanceRecord {
     @Id
@@ -27,7 +29,6 @@ public class MaintenanceRecord {
     @JoinColumn(name = "inspection_id")
     private Inspection inspection;
 
-}
 
     public MaintenanceRecord() {
     }
@@ -124,5 +125,4 @@ public class MaintenanceRecord {
     public void setInspection(Inspection inspection) {
         this.inspection = inspection;
     }
-
-
+}

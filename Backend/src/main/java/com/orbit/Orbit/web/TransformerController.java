@@ -1,6 +1,9 @@
 package com.orbit.Orbit.web;
 
+import com.orbit.Orbit.dto.MaintenanceReportRequest;
+import com.orbit.Orbit.model.MaintenanceRecord;
 import com.orbit.Orbit.model.Transformer;
+import com.orbit.Orbit.service.MaintenanceRecordService;
 import com.orbit.Orbit.service.TransformerService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
@@ -19,10 +22,13 @@ public class TransformerController {
 
 
     private final TransformerService transformerService;
+
+    private final MaintenanceRecordService maintenceRecordService;
     private String transformerNumber;
 
-    public TransformerController (TransformerService transformerService){
+    public TransformerController (TransformerService transformerService, MaintenanceRecordService maintenceRecordService){
         this.transformerService = transformerService;
+        this.maintenceRecordService = maintenceRecordService;   
     }
 
 
@@ -92,4 +98,30 @@ public class TransformerController {
         }
         return ResponseEntity.noContent().build();
     }
+
+
+    //Maintenance Reports
+    @GetMapping("/api/v1/transformers/{transformerNumber}/maintenance-report/{maintenanceRecordId}")
+    public ResponseEntity<MaintenanceRecord> getMaintenanceReportById(@PathVariable String transformerNumber, @PathVariable Long maintenanceRecordId){
+        MaintenanceRecord report = maintenceRecordService.get(maintenanceRecordId);
+        if (report == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        return ResponseEntity.ok(report);
+    }
+
+    @GetMapping("/api/v1/transformers/{transformerNumber}/maintenance-report")
+    public Collection<MaintenanceRecord> getMaintenanceReportsByTransformerId(@PathVariable String transformerNumber){
+        return maintenceRecordService.getMaintenanceRecordsByTransformerNumber(transformerNumber);
+    }
+
+
+    @PostMapping("/api/v1/transformers/{transformerNumber}/maintenance-report")
+    public ResponseEntity<Void> uploadMaintenanceReport(
+            @PathVariable String transformerNumber,
+            @RequestBody MaintenanceReportRequest maintenanceReportRequest){
+       maintenceRecordService.save(maintenanceReportRequest);
+       return ResponseEntity.ok().build();
+    }
+    
 }
