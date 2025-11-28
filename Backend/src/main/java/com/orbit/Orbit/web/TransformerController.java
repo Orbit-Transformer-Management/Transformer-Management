@@ -120,7 +120,8 @@ public class TransformerController {
     public ResponseEntity<Void> uploadMaintenanceReport(
             @PathVariable String transformerNumber,
             @RequestBody MaintenanceReportRequest maintenanceReportRequest){
-       maintenceRecordService.save(maintenanceReportRequest);
+        maintenanceReportRequest.setTransformerNumber(transformerNumber);
+        maintenceRecordService.save(maintenanceReportRequest);
        return ResponseEntity.ok().build();
     }
     

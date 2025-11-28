@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface MaintenceRecordRepo extends JpaRepository<MaintenanceRecord, Long> {
-    List<MaintenanceRecord> findByTransformerNumber(String transformerNumber);
+    List<MaintenanceRecord> findByTransformer_TransformerNumber(String transformerNumber);
 }

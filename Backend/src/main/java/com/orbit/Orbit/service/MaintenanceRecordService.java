@@ -43,7 +43,7 @@ public class MaintenanceRecordService {
     }
 
     public List<MaintenanceRecord> getMaintenanceRecordsByTransformerNumber(String transformerNumber) {
-        return maintenceRecordRepository.findByTransformerNumber(transformerNumber);
+        return maintenceRecordRepository.findByTransformer_TransformerNumber(transformerNumber);
     }
 
 }
