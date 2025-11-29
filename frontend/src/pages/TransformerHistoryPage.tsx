@@ -15,6 +15,7 @@ import {
   Calendar,
   Activity,
   Plus,
+  Wrench,
 } from "lucide-react";
 import AddInspectionModal from "../components/AddInspectionModal";
 import EditInspectionModal from "../components/EditInspectionModal"; // ⬅️ use the modal like transformers page
@@ -296,18 +297,33 @@ const TransformerInspectionsPage = () => {
               </div>
             </div>
 
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 
-                         text-white px-8 py-5 rounded-2xl 
-                         hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
-                         text-xl font-bold shadow-2xl 
-                         transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
-                         [&_*]:text-white [&_svg]:stroke-white"
-            >
-              <Plus size={26} className="mr-3" />
-              <span>Add Inspection</span>
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 
+                           text-white px-8 py-5 rounded-2xl 
+                           hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
+                           text-xl font-bold shadow-2xl 
+                           transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
+                           [&_*]:text-white [&_svg]:stroke-white"
+              >
+                <Plus size={26} className="mr-3" />
+                <span>Add Inspection</span>
+              </button>
+
+              <button
+                onClick={() => navigate(`/transformers/${transformerInfo?.transformerNumber}/maintenance`)}
+                className="flex items-center bg-gradient-to-r from-gray-500 via-gray-600 to-gray-700 
+                           text-white px-8 py-5 rounded-2xl 
+                           hover:from-gray-600 hover:via-gray-700 hover:to-gray-800 
+                           text-xl font-bold shadow-2xl 
+                           transition-all duration-300 transform hover:scale-105 hover:-translate-y-1
+                           [&_*]:text-white [&_svg]:stroke-white"
+              >
+                <Wrench size={26} className="mr-3" />
+                <span>Maintenance Record</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
