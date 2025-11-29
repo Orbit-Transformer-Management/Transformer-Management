@@ -67,12 +67,13 @@ interface TransformerDetails {
   region: string;
   type: string;
   locationDetails: string;
+  base_image_url?: string;
 }
 
 const MaintenanceRecordForm: React.FC = () => {
   const { transformerNumber } = useParams<{ transformerNumber: string }>();
   const navigate = useNavigate();
-  
+
   const technicianSignatureRef = useRef<SignatureCanvas>(null);
   const supervisorSignatureRef = useRef<SignatureCanvas>(null);
 
@@ -82,43 +83,43 @@ const MaintenanceRecordForm: React.FC = () => {
       const img = new Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       img.onload = () => {
         canvas.width = img.width;
         canvas.height = img.height;
-        
+
         if (ctx) {
           // Draw original image
           ctx.drawImage(img, 0, 0);
-          
+
           // Draw bounding boxes
           detections.forEach((detection) => {
             const left = detection.x - detection.width / 2;
             const top = detection.y - detection.height / 2;
-            
+
             // Set color based on className
             let color = 'limegreen';
             if (detection.className === 'pf') color = 'red';
             else if (detection.className === 'f') color = 'orange';
-            
+
             // Draw rectangle
             ctx.strokeStyle = color;
             ctx.lineWidth = 3;
             ctx.strokeRect(left, top, detection.width, detection.height);
-            
+
             // Draw label background - use detectName if available, otherwise className
             const label = detection.detectName || detection.className || 'Unknown';
             ctx.font = 'bold 16px Arial';
             const textWidth = ctx.measureText(label).width;
             ctx.fillStyle = color;
             ctx.fillRect(left, top - 25, textWidth + 10, 25);
-            
+
             // Draw label text
             ctx.fillStyle = 'white';
             ctx.fillText(label, left + 5, top - 7);
           });
         }
-        
+
         // Convert canvas to blob URL
         canvas.toBlob((blob) => {
           if (blob) {
@@ -128,11 +129,11 @@ const MaintenanceRecordForm: React.FC = () => {
           }
         }, 'image/jpeg', 0.95);
       };
-      
+
       img.onerror = () => {
         resolve(URL.createObjectURL(imageBlob)); // Fallback to original
       };
-      
+
       img.src = URL.createObjectURL(imageBlob);
     });
   };
@@ -158,13 +159,15 @@ const MaintenanceRecordForm: React.FC = () => {
   const [inspectionImages, setInspectionImages] = useState<Map<string, string>>(new Map());
   const [transformerDetails, setTransformerDetails] = useState<TransformerDetails | null>(null);
   const [inspectionDetections, setInspectionDetections] = useState<Map<string, Detection[]>>(new Map());
+
   const [inspectionComments, setInspectionComments] = useState<Map<string, Comment[]>>(new Map());
+  const [baseImage, setBaseImage] = useState<string | null>(null);
 
   // Fetch existing maintenance records and available inspections
   useEffect(() => {
     const fetchData = async () => {
       if (!transformerNumber) return;
-      
+
       try {
         // Fetch transformer details
         const transformerResponse = await axios.get(
@@ -246,13 +249,13 @@ const MaintenanceRecordForm: React.FC = () => {
               `http://localhost:8080/api/v1/inspections/${inspection.inspectionNumber}/image`,
               { responseType: 'blob' }
             );
-            
+
             // Get detections for this inspection
             const detections = detectionsMap.get(inspection.inspectionNumber) || [];
-            
+
             // Draw bounding boxes on image
             const annotatedImageUrl = await drawBoundingBoxesOnImage(response.data, detections);
-            
+
             return {
               inspectionNumber: inspection.inspectionNumber,
               imageUrl: annotatedImageUrl
@@ -268,7 +271,53 @@ const MaintenanceRecordForm: React.FC = () => {
         images.forEach(img => {
           if (img) imageMap.set(img.inspectionNumber, img.imageUrl);
         });
+
         setInspectionImages(imageMap);
+
+        // Fetch base image
+        try {
+          let imageUrl = `http://localhost:8080/api/v1/transformers/${transformerNumber}/image`;
+          const defaultUrl = imageUrl;
+
+          if (transformerResponse.data.base_image_url) {
+            let url = transformerResponse.data.base_image_url;
+            if (!url.startsWith('http')) {
+              if (!url.startsWith('/')) {
+                url = `/${url}`;
+              }
+              url = `http://localhost:8080${url}`;
+            }
+            imageUrl = url;
+          }
+
+          console.log('Fetching base image from:', imageUrl);
+          let baseImageResponse;
+          try {
+            baseImageResponse = await axios.get(imageUrl, { responseType: 'blob' });
+          } catch (e) {
+            console.warn(`Failed to fetch base image from ${imageUrl}`, e);
+            if (imageUrl !== defaultUrl) {
+              console.log('Falling back to default image endpoint');
+              baseImageResponse = await axios.get(defaultUrl, { responseType: 'blob' });
+            } else {
+              throw e;
+            }
+          }
+
+          if (baseImageResponse && baseImageResponse.data) {
+            const contentType = baseImageResponse.headers['content-type'];
+            if (contentType && contentType.startsWith('image/')) {
+              // Use drawBoundingBoxesOnImage to process the image, consistent with annotated images
+              const processedImageUrl = await drawBoundingBoxesOnImage(baseImageResponse.data, []);
+              setBaseImage(processedImageUrl);
+            } else {
+              console.error('Base image response is not an image:', contentType);
+            }
+          }
+
+        } catch (err) {
+          console.error('Error loading base image:', err);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
       }
@@ -313,7 +362,7 @@ const MaintenanceRecordForm: React.FC = () => {
     try {
       // Temporarily load the record data
       const originalFormData = { ...formData };
-      
+
       // Set form data to the record
       setFormData({
         transformerNumber: transformerNumber || '',
@@ -331,7 +380,7 @@ const MaintenanceRecordForm: React.FC = () => {
       setTimeout(async () => {
         const pdfBlob = await generatePDF();
         const url = URL.createObjectURL(pdfBlob);
-        
+
         // Open in new window for printing
         const printWindow = window.open(url, '_blank');
         if (printWindow) {
@@ -341,7 +390,7 @@ const MaintenanceRecordForm: React.FC = () => {
             }, 250);
           };
         }
-        
+
         // Restore original form data after a delay
         setTimeout(() => {
           setFormData(originalFormData);
@@ -379,7 +428,7 @@ const MaintenanceRecordForm: React.FC = () => {
     // Header with blue background
     doc.setFillColor(41, 128, 185); // Blue color
     doc.rect(margin, yPosition, contentWidth, 20, 'F');
-    
+
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255); // White text
@@ -405,19 +454,19 @@ const MaintenanceRecordForm: React.FC = () => {
     doc.setTextColor(41, 128, 185);
     doc.text('TRANSFORMER INFORMATION', margin + 2, yPosition + 6);
     yPosition += 12;
-    
+
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    
+
     // Two-column layout for transformer info
     const col1X = margin + 5;
     const col2X = pageWidth / 2 + 5;
-    
+
     doc.text('Transformer Number:', col1X, yPosition);
     doc.setFont('helvetica', 'normal');
     doc.text(String(formData.transformerNumber || 'N/A'), col1X + 50, yPosition);
-    
+
     if (transformerDetails?.poleNumber) {
       doc.setFont('helvetica', 'bold');
       doc.text('Pole Name:', col2X, yPosition);
@@ -425,14 +474,14 @@ const MaintenanceRecordForm: React.FC = () => {
       doc.text(String(transformerDetails.poleNumber), col2X + 30, yPosition);
     }
     yPosition += 7;
-    
+
     if (transformerDetails?.type) {
       doc.setFont('helvetica', 'bold');
       doc.text('Type:', col1X, yPosition);
       doc.setFont('helvetica', 'normal');
       doc.text(String(transformerDetails.type), col1X + 50, yPosition);
     }
-    
+
     if (transformerDetails?.region) {
       doc.setFont('helvetica', 'bold');
       doc.text('Region:', col2X, yPosition);
@@ -440,17 +489,45 @@ const MaintenanceRecordForm: React.FC = () => {
       doc.text(String(transformerDetails.region), col2X + 30, yPosition);
     }
     yPosition += 7;
-    
+
     doc.setFont('helvetica', 'bold');
     doc.text('Status:', col1X, yPosition);
     doc.setFont('helvetica', 'normal');
     doc.text(String(formData.transformerStatus || 'N/A'), col1X + 50, yPosition);
-    
+
     doc.setFont('helvetica', 'bold');
     doc.text('Inspector:', col2X, yPosition);
     doc.setFont('helvetica', 'normal');
     doc.text(String(formData.inspectorName || 'N/A'), col2X + 30, yPosition);
+
     yPosition += 12;
+
+    // Base Image
+    if (baseImage) {
+      try {
+        const img = new Image();
+        img.src = baseImage;
+        // Wait for image to load or timeout after 1 second
+        await new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(() => resolve(), 1000);
+        });
+
+        const imageWidth = 80;
+        const imageHeight = 60;
+        // Check if we need a new page
+        if (yPosition + imageHeight > 250) {
+          addNewPage();
+        }
+
+        doc.addImage(baseImage, 'JPEG', margin, yPosition, imageWidth, imageHeight);
+        yPosition += imageHeight + 5;
+
+      } catch (err) {
+        console.error('Error adding base image to PDF:', err);
+      }
+    }
 
     // Electrical Readings Section
     doc.setFillColor(240, 240, 240);
@@ -460,14 +537,14 @@ const MaintenanceRecordForm: React.FC = () => {
     doc.setTextColor(41, 128, 185);
     doc.text('ELECTRICAL READINGS', margin + 2, yPosition + 6);
     yPosition += 12;
-    
+
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.text('Voltage:', col1X, yPosition);
     doc.setFont('helvetica', 'normal');
     doc.text(`${formData.voltage || 'N/A'} V`, col1X + 50, yPosition);
-    
+
     doc.setFont('helvetica', 'bold');
     doc.text('Current:', col2X, yPosition);
     doc.setFont('helvetica', 'normal');
@@ -482,7 +559,7 @@ const MaintenanceRecordForm: React.FC = () => {
     doc.setTextColor(41, 128, 185);
     doc.text('RECOMMENDED ACTION', margin + 2, yPosition + 6);
     yPosition += 12;
-    
+
     doc.setFontSize(11);
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
@@ -499,7 +576,7 @@ const MaintenanceRecordForm: React.FC = () => {
       doc.setTextColor(41, 128, 185);
       doc.text('ADDITIONAL REMARKS', margin + 2, yPosition + 6);
       yPosition += 12;
-      
+
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
@@ -517,7 +594,7 @@ const MaintenanceRecordForm: React.FC = () => {
       doc.setTextColor(41, 128, 185);
       doc.text('OTHER NOTES', margin + 2, yPosition + 6);
       yPosition += 12;
-      
+
       doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'normal');
@@ -532,7 +609,7 @@ const MaintenanceRecordForm: React.FC = () => {
         if (yPosition > 240) {
           addNewPage();
         }
-        
+
         doc.setFillColor(240, 240, 240);
         doc.rect(margin, yPosition, contentWidth, 8, 'F');
         doc.setFontSize(14);
@@ -540,7 +617,7 @@ const MaintenanceRecordForm: React.FC = () => {
         doc.setTextColor(41, 128, 185);
         doc.text(`RELATED INSPECTIONS (${availableInspections.length})`, margin + 2, yPosition + 6);
         yPosition += 12;
-        
+
         for (const inspection of availableInspections) {
           // Check if we need a new page
           if (yPosition > 240) {
@@ -551,12 +628,12 @@ const MaintenanceRecordForm: React.FC = () => {
           doc.setDrawColor(41, 128, 185);
           doc.setLineWidth(0.5);
           doc.rect(margin + 3, yPosition, contentWidth - 6, 25);
-          
+
           doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(0, 0, 0);
           doc.text(`Inspection: ${String(inspection.inspectionNumber || 'N/A')}`, margin + 6, yPosition + 6);
-          
+
           // Status badge
           const statusX = pageWidth - margin - 35;
           const statusText = String(inspection.status || 'N/A');
@@ -571,7 +648,7 @@ const MaintenanceRecordForm: React.FC = () => {
           doc.setFontSize(9);
           doc.setTextColor(255, 255, 255);
           doc.text(statusText, statusX + 15, yPosition + 6, { align: 'center' });
-          
+
           doc.setFontSize(10);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(60, 60, 60);
@@ -590,7 +667,7 @@ const MaintenanceRecordForm: React.FC = () => {
             doc.setTextColor(200, 0, 0);
             doc.text(`Detected Issues (${detections.length}):`, margin + 6, yPosition);
             yPosition += 6;
-            
+
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(60, 60, 60);
             detections.forEach((detection) => {
@@ -613,7 +690,7 @@ const MaintenanceRecordForm: React.FC = () => {
             doc.setTextColor(41, 128, 185);
             doc.text(`Comments:`, margin + 6, yPosition);
             yPosition += 6;
-            
+
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(60, 60, 60);
             comments.forEach((comment) => {
@@ -646,25 +723,25 @@ const MaintenanceRecordForm: React.FC = () => {
               if (yPosition > 160) {
                 addNewPage();
               }
-              
+
               // Add image title
               doc.setFontSize(10);
               doc.setFont('helvetica', 'bold');
               doc.setTextColor(60, 60, 60);
               doc.text('Annotated Image with Detections:', margin + 6, yPosition);
               yPosition += 5;
-              
+
               // Create a temporary image to ensure it's loaded
               const img = new Image();
               img.src = imageUrl;
-              
+
               // Wait for image to load or timeout after 1 second
               await new Promise<void>((resolve) => {
                 img.onload = () => resolve();
                 img.onerror = () => resolve();
                 setTimeout(() => resolve(), 1000);
               });
-              
+
               // Image with border
               const imageWidth = 120;
               const imageHeight = 70;
@@ -687,7 +764,7 @@ const MaintenanceRecordForm: React.FC = () => {
             doc.text('(No image available)', margin + 5, yPosition);
             yPosition += 3;
           }
-          
+
           yPosition += 3;
         }
       } catch (err) {
@@ -723,24 +800,24 @@ const MaintenanceRecordForm: React.FC = () => {
     doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.3);
     doc.rect(sig1X, yPosition, sigWidth, sigHeight);
-    
+
     if (technicianSignatureRef.current && !technicianSignatureRef.current.isEmpty()) {
       const techSigImage = technicianSignatureRef.current.toDataURL();
       doc.addImage(techSigImage, 'PNG', sig1X + 2, yPosition + 2, sigWidth - 4, sigHeight - 4);
     }
-    
+
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Technician Signature', sig1X + sigWidth / 2, yPosition + sigHeight + 6, { align: 'center' });
-    
+
     // Supervisor signature
     doc.rect(sig2X, yPosition, sigWidth, sigHeight);
-    
+
     if (supervisorSignatureRef.current && !supervisorSignatureRef.current.isEmpty()) {
       const supSigImage = supervisorSignatureRef.current.toDataURL();
       doc.addImage(supSigImage, 'PNG', sig2X + 2, yPosition + 2, sigWidth - 4, sigHeight - 4);
     }
-    
+
     doc.text('Supervisor Signature', sig2X + sigWidth / 2, yPosition + sigHeight + 6, { align: 'center' });
 
     // Footer
@@ -874,11 +951,10 @@ const MaintenanceRecordForm: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-base font-medium text-gray-500">Status</p>
-                          <span className={`inline-block px-2 py-1 text-base font-semibold rounded-full ${
-                            record.transformerStatus === 'Operational' ? 'bg-green-100 text-green-800' :
+                          <span className={`inline-block px-2 py-1 text-base font-semibold rounded-full ${record.transformerStatus === 'Operational' ? 'bg-green-100 text-green-800' :
                             record.transformerStatus === 'Under Maintenance' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
+                              'bg-red-100 text-red-800'
+                            }`}>
                             {record.transformerStatus}
                           </span>
                         </div>
@@ -1001,6 +1077,20 @@ const MaintenanceRecordForm: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {/* Base Image Display */}
+        {baseImage && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-medium text-gray-700 mb-4">Base Image</h3>
+            <div className="relative w-full max-w-md rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm">
+              <img
+                src={baseImage}
+                alt="Transformer Base"
+                className="w-full h-auto object-cover"
+              />
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Electrical Readings */}
@@ -1109,11 +1199,10 @@ const MaintenanceRecordForm: React.FC = () => {
                       <h3 className="text-lg font-semibold text-gray-900">
                         {inspection.inspectionNumber}
                       </h3>
-                      <span className={`px-2 py-0.5 text-base font-medium rounded-full ${
-                        inspection.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                      <span className={`px-2 py-0.5 text-base font-medium rounded-full ${inspection.status === 'Completed' ? 'bg-green-100 text-green-800' :
                         inspection.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
+                          'bg-gray-100 text-gray-800'
+                        }`}>
                         {inspection.status}
                       </span>
                     </div>
@@ -1136,40 +1225,40 @@ const MaintenanceRecordForm: React.FC = () => {
                       </div>
                     </div>
                     {/* Detected Issues */}
-                    {inspectionDetections.get(inspection.inspectionNumber) && 
-                     inspectionDetections.get(inspection.inspectionNumber)!.length > 0 && (
-                      <div className="mt-3 border-t pt-3">
-                        <p className="text-base font-medium text-gray-700 mb-2">Detected Issues ({inspectionDetections.get(inspection.inspectionNumber)!.length}):</p>
-                        <div className="space-y-1">
-                          {inspectionDetections.get(inspection.inspectionNumber)!.map((detection, idx) => (
-                            <div key={detection.detectId} className="flex items-center gap-2 text-base">
-                              <span className="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
-                              <span className="font-medium text-gray-700">{detection.detectName || detection.className}</span>
-                              <span className="text-gray-500">({(detection.confidence * 100).toFixed(1)}% confidence)</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {/* Comments */}
-                    {inspectionComments.get(inspection.inspectionNumber) && 
-                     inspectionComments.get(inspection.inspectionNumber)!.length > 0 && (
-                      <div className="mt-3 border-t pt-3">
-                        <p className="text-base font-medium text-gray-700 mb-2">Comments:</p>
-                        <div className="space-y-2">
-                          {inspectionComments.get(inspection.inspectionNumber)!.map((comment) => (
-                            <div key={comment.id} className="bg-gray-50 p-3 rounded-md">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="font-semibold text-gray-800 text-base">{comment.topic}</span>
-                                <span className="text-sm text-gray-500">{new Date(comment.createdAt).toLocaleString()}</span>
+                    {inspectionDetections.get(inspection.inspectionNumber) &&
+                      inspectionDetections.get(inspection.inspectionNumber)!.length > 0 && (
+                        <div className="mt-3 border-t pt-3">
+                          <p className="text-base font-medium text-gray-700 mb-2">Detected Issues ({inspectionDetections.get(inspection.inspectionNumber)!.length}):</p>
+                          <div className="space-y-1">
+                            {inspectionDetections.get(inspection.inspectionNumber)!.map((detection, idx) => (
+                              <div key={detection.detectId} className="flex items-center gap-2 text-base">
+                                <span className="inline-block w-2 h-2 bg-red-500 rounded-full"></span>
+                                <span className="font-medium text-gray-700">{detection.detectName || detection.className}</span>
+                                <span className="text-gray-500">({(detection.confidence * 100).toFixed(1)}% confidence)</span>
                               </div>
-                              <p className="text-base text-gray-700 mb-1">{comment.comment}</p>
-                              <p className="text-sm text-gray-500">By: {comment.author}</p>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    {/* Comments */}
+                    {inspectionComments.get(inspection.inspectionNumber) &&
+                      inspectionComments.get(inspection.inspectionNumber)!.length > 0 && (
+                        <div className="mt-3 border-t pt-3">
+                          <p className="text-base font-medium text-gray-700 mb-2">Comments:</p>
+                          <div className="space-y-2">
+                            {inspectionComments.get(inspection.inspectionNumber)!.map((comment) => (
+                              <div key={comment.id} className="bg-gray-50 p-3 rounded-md">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-semibold text-gray-800 text-base">{comment.topic}</span>
+                                  <span className="text-sm text-gray-500">{new Date(comment.createdAt).toLocaleString()}</span>
+                                </div>
+                                <p className="text-base text-gray-700 mb-1">{comment.comment}</p>
+                                <p className="text-sm text-gray-500">By: {comment.author}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     {/* Inspection Image */}
                     {inspectionImages.get(inspection.inspectionNumber) && (
                       <div className="mt-3 border-t pt-3">
