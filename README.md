@@ -4,6 +4,77 @@ Orbit is a web-based system designed to **digitize and streamline routine therma
 
 ---
 
+## 🗂️ Phase 1 – Transformer and Baseline Image Management
+
+Phase 1 laid the foundation for managing transformers and baseline images.
+
+### Admin Interface for Transformer Management
+
+* Add new transformer records
+* View and edit existing transformer records
+* Delete transformer records if required
+
+### Thermal Image Upload and Tagging
+
+* Upload **thermal images** linked to specific transformers
+* Support for two image types:
+
+  * **Baseline**: Reference images for comparisons
+  * **Maintenance**: Images from periodic inspections
+* Each image is stored with metadata:
+
+  * Upload date/time
+  * Image type (Baseline / Maintenance)
+  * Uploader (admin ID or name)
+
+### Categorization by Environmental Conditions
+
+* While uploading baseline images, users must select environmental conditions:
+
+  * Sunny
+  * Cloudy
+  * Rainy
+* Images are stored and searchable by these conditions.
+
+---
+
+## 📌 Phase 2 – Automated Fault Detection & Inspection Comments
+
+In phase 2 we introduced AI-powered analysis and feedback management, enhancing the system’s intelligence and usability.
+
+### 🔍 Roboflow AI Integration
+
+Integrated Roboflow model trained on transformer thermal imagery.
+
+On uploading a maintenance image, the backend automatically:
+
+* Sends the image to the Roboflow API for inference
+* Receives detected fault bounding boxes, labels, and confidence scores
+* Stores the prediction JSON in the database
+* Annotated images are displayed in the inspection page
+
+### 🧠 Fault Detection Workflow
+
+Detected anomalies (e.g., hotspots, loose connections) are classified as:
+
+* Normal
+* Potential Fault
+* Fault
+
+The results are visually rendered on the uploaded image with color-coded bounding boxes.
+
+### 💬 Inspection Comment System
+
+Inspectors can add comments and observations on each inspection. Each comment includes:
+
+* Author name
+* Comment text
+* Timestamp
+
+Comments are stored in a dedicated table linked to the inspection. Admins can view and manage all past discussions on a transformer’s inspection history.
+
+---
+
 ## ⚙️ Phase 3 – Interactive Annotation & Feedback Loop
 
 We have completed phase 3 focusing on enhancing user control, data accuracy, and model improvement.
@@ -51,76 +122,33 @@ The system now facilitates the automatic collection of high-quality training dat
 
 ---
 
-## 📌 Phase 2 – Automated Fault Detection & Inspection Comments
+## 📄 Phase 4 – Digital Maintenance Record Generation
 
-In phase 2 we introduced AI-powered analysis and feedback management, enhancing the system’s intelligence and usability.
+We have completed Phase 4, focusing on the digitization of the final output: replacing handwritten logbooks with automated, traceable reports.
 
-### 🔍 Roboflow AI Integration
+### 🖨️ Automated Report Generation
 
-Integrated Roboflow model trained on transformer thermal imagery.
+The system now automatically generates professional maintenance records based on the inspection data.
+* **Auto-Population**: Instantly pulls Transformer Metadata (ID, Location, Capacity), Inspection Timestamp, and the Annotated Thermal Image from previous phases.
+* **Visual Evidence**: Embeds the processed thermal image with verified anomaly markers directly into the report.
+* **History Integration**: Automatically lists "Related Inspections" on the report, providing immediate context on the transformer's health history.
 
-On uploading a maintenance image, the backend automatically:
+### ✍️ Engineer Validation & Input
 
-* Sends the image to the Roboflow API for inference
-* Receives detected fault bounding boxes, labels, and confidence scores
-* Stores the prediction JSON in the database
-* Annotated images are displayed in the inspection page
+While AI provides the data, the site engineer provides the judgment. The report interface includes editable fields for:
+* **Inspector Details**: Name and signature placeholders.
+* **Electrical Readings**: Input fields for Voltage (V) and Current (A).
+* **Status Classification**: Dropdown selection (OK / Needs Maintenance / Urgent Attention).
+* **Actionable Outcomes**: Fields for "Recommended Action" and "Additional Remarks."
 
-### 🧠 Fault Detection Workflow
+### 📜 Record Persistence & Retrieval
 
-Detected anomalies (e.g., hotspots, loose connections) are classified as:
-
-* Normal
-* Potential Fault
-* Fault
-
-The results are visually rendered on the uploaded image with color-coded bounding boxes.
-
-### 💬 Inspection Comment System
-
-Inspectors can add comments and observations on each inspection. Each comment includes:
-
-* Author name
-* Comment text
-* Timestamp
-
-Comments are stored in a dedicated table linked to the inspection. Admins can view and manage all past discussions on a transformer’s inspection history.
+* **Digital Archiving**: Completed reports are saved to the database, creating a permanent audit trail.
+* **History Viewer**: Users can view a timeline of all past maintenance records for any specific transformer.
+* **PDF Export**: The final output is formatted for clean printing or PDF export for official filing.
 
 ---
 
-## 🗂️ Phase 1 – Transformer and Baseline Image Management
-
-Phase 1 laid the foundation for managing transformers and baseline images.
-
-### Admin Interface for Transformer Management
-
-* Add new transformer records
-* View and edit existing transformer records
-* Delete transformer records if required
-
-### Thermal Image Upload and Tagging
-
-* Upload **thermal images** linked to specific transformers
-* Support for two image types:
-
-  * **Baseline**: Reference images for comparisons
-  * **Maintenance**: Images from periodic inspections
-* Each image is stored with metadata:
-
-  * Upload date/time
-  * Image type (Baseline / Maintenance)
-  * Uploader (admin ID or name)
-
-### Categorization by Environmental Conditions
-
-* While uploading baseline images, users must select environmental conditions:
-
-  * Sunny
-  * Cloudy
-  * Rainy
-* Images are stored and searchable by these conditions.
-
----
 
 ## 🧩 API Endpoints
 
@@ -161,6 +189,14 @@ Phase 1 laid the foundation for managing transformers and baseline images.
 | POST    | /api/v1/inspections/{inspectionNumber}/analyze          | Add a new anomaly annotation                                     |
 | PUT     | /api/v1/inspections/analyze/{detectId}                  | Update or modify existing anomaly annotation                     |
 | DELETE  | /api/v1/inspections/analyze/{detectId}                  | Delete a detection or annotation                                 |
+
+### Phase 4 – Maintenance Reports APIs
+
+| Method | Endpoint                                                                      | Description                                                       |
+| ------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| GET    | /api/v1/transformers/{transformerNumber}/maintenance-report                   | Get all maintenance records for a specific transformer            |
+| POST   | /api/v1/transformers/{transformerNumber}/maintenance-report                   | Create/Save a new maintenance record (with engineer inputs)       |
+| GET    | /api/v1/transformers/{transformerNumber}/maintenance-report/{maintenanceId}   | Retrieve a specific maintenance record by its ID                  |
 
 ---
 
