@@ -5,6 +5,7 @@ import TransformersListPage from './pages/TransformersListPage';
 import InspectionsPage from './pages/InspectionsPage';
 import InspectionUploadPage from './pages/InspectionUploadPage'; //renamed hare
 import TransformerHistoryPage from './pages/TransformerHistoryPage';
+import MaintenanceRecordPage from './pages/MaintenanceRecordPage';
 
 function App() {
   return (
@@ -20,6 +21,8 @@ function App() {
           <Route path="/transformers/:id/history" element={<TransformerHistoryPage />} />
           {/* Transformer Upload Images Page */}
           <Route path="/inspections/:inspectionNo/upload" element={<InspectionUploadPage />} />
+          {/* Maintenance Record Form */}
+          <Route path="/transformers/:transformerNumber/maintenance" element={<MaintenanceRecordPage />} />
           <Route path="/settings" element={<div>Settings Page</div>} />
         </Route>
       </Routes>

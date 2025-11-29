@@ -242,4 +242,6 @@ public class InspectionController {
         inspectionService.deleteComment(commentId);
         return ResponseEntity.noContent().build(); // returns 204 No Content
     }
+
+    
 }
